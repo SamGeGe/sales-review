@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  sales-review:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: sales-review-app
+    ports:
+      - "6092:6090"  # 前端端口映射
+      - "6093:6091"  # 后端端口映射
+    volumes:
+      - ./backend/data:/app/backend/data  # 数据库文件持久化
+      - ./backend/reports:/app/backend/reports  # 报告文件持久化
+      - ./backend/uploads:/app/backend/uploads  # 上传文件持久化
+      - ./conf.yaml:/app/conf.yaml  # 配置文件
+    environment:
+      - NODE_ENV=production
+      - DOCKER_ENV=true
+      - TZ=Asia/Shanghai
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6091/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - sales-review-network
+
+networks:
+  sales-review-network:
+    driver: bridge 

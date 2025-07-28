@@ -1,0 +1,48 @@
+# 销售复盘系统配置文件模板
+# 请复制此文件为 conf.yaml 并填入您的实际配置
+
+# 开发环境配置
+development:
+  frontend:
+    port: 6090
+    backend_url: http://localhost:6091
+  backend:
+    port: 6091
+    cors_origins:
+      - http://localhost:6090
+      - http://localhost:6091
+
+# Docker/生产环境配置
+production:
+  frontend:
+    port: 6092
+    backend_url: /api
+  backend:
+    port: 6093
+    cors_origins:
+      - http://localhost:6092
+      - http://localhost:6093
+      - "http://*"
+      - "https://*"
+      - "*"
+
+# LLM配置
+llm:
+  primary:
+    base_url: "http://your-llm-server:8000/v1"
+    model: "your-model-name"
+    api_key: "your-api-key-here"
+    timeout: 120000
+    max_retries: 3
+  backup:
+    base_url: "https://openrouter.ai/api/v1"
+    model: "your-backup-model"
+    api_key: "your-backup-api-key"
+    timeout: 120000
+    max_retries: 3
+
+# 聊天历史配置
+chat_history:
+  enabled: true
+  max_messages: 100
+  storage_key: "sales_review_chat_history" 

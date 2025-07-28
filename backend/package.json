@@ -1,0 +1,38 @@
+{
+  "name": "sales-review-backend",
+  "version": "1.0.0",
+  "description": "销售复盘系统后端服务",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node scripts/start-with-config.js",
+    "dev": "nodemon scripts/start-with-config.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "axios": "^1.6.2",
+    "child_process": "^1.0.2",
+    "cors": "^2.8.5",
+    "docx": "^8.5.0",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "html-pdf-node": "^1.0.8",
+    "js-yaml": "^4.1.0",
+    "pandoc": "^0.1.0",
+    "puppeteer": "^21.6.1",
+    "sqlite3": "^5.1.7",
+    "uuid": "^11.1.0",
+    "wkhtmltopdf": "^0.1.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "keywords": [
+    "sales",
+    "review",
+    "backend",
+    "api"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}

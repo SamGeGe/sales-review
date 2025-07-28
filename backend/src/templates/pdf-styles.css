@@ -1,0 +1,97 @@
+@page {
+  size: A4;
+  margin: 2cm;
+}
+
+body {
+  font-family: 'Microsoft YaHei', 'SimSun', Arial, sans-serif;
+  margin: 0;
+  padding: 20px;
+  line-height: 1.6;
+  color: #333;
+  font-size: 12pt;
+  background: white;
+}
+
+h1 {
+  color: #1890ff;
+  font-size: 18pt;
+  margin-top: 30px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #1890ff;
+  padding-bottom: 10px;
+  page-break-after: avoid;
+}
+
+h2 {
+  color: #1890ff;
+  font-size: 16pt;
+  margin-top: 25px;
+  margin-bottom: 15px;
+  page-break-after: avoid;
+}
+
+h3 {
+  color: #1890ff;
+  font-size: 14pt;
+  margin-top: 20px;
+  margin-bottom: 10px;
+  page-break-after: avoid;
+}
+
+p {
+  margin-bottom: 12px;
+  text-align: justify;
+  orphans: 3;
+  widows: 3;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 15px 0;
+  font-size: 10pt;
+  page-break-inside: avoid;
+}
+
+th, td {
+  border: 1px solid #ddd;
+  padding: 6px;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background-color: #f5f5f5;
+  font-weight: bold;
+  color: #333;
+}
+
+tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+.page-break {
+  page-break-before: always;
+}
+
+.no-break {
+  page-break-inside: avoid;
+}
+
+/* 确保表格在PDF中正确显示 */
+table {
+  table-layout: fixed;
+  word-wrap: break-word;
+}
+
+/* 优化表格单元格内容 */
+td, th {
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+/* 确保中文字体正确显示 */
+* {
+  font-family: 'Microsoft YaHei', 'SimSun', Arial, sans-serif !important;
+} 

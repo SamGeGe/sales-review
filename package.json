@@ -1,0 +1,27 @@
+{
+  "name": "sales-review-system",
+  "version": "1.0.0",
+  "description": "营销中心周复盘系统",
+  "scripts": {
+    "install-all": "npm install && cd frontend && npm install && cd ../backend && npm install",
+    "start": "concurrently \"cd backend && npm start\" \"cd frontend && npm start\"",
+    "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm start\"",
+    "build": "cd frontend && npm run build",
+    "docker-build": "docker build -t sales-review .",
+    "docker-run": "docker-compose up -d",
+    "docker-stop": "docker-compose down",
+    "docker-logs": "docker-compose logs -f"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": [
+    "sales",
+    "review",
+    "ai",
+    "react",
+    "nodejs"
+  ],
+  "author": "开发团队",
+  "license": "MIT"
+} 
