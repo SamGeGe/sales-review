@@ -9,7 +9,10 @@ import {
   Space,
   Typography,
   Tag,
-  Descriptions
+  Descriptions,
+  Checkbox,
+  Row,
+  Col
 } from 'antd';
 import { EyeOutlined, DeleteOutlined, DownloadOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
@@ -45,6 +48,8 @@ const History: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedReport, setSelectedReport] = useState<ReviewReport | null>(null);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [batchLoading, setBatchLoading] = useState(false);
 
   // 获取历史报告列表
   const fetchReports = async () => {
@@ -89,6 +94,52 @@ const History: React.FC = () => {
     }
   };
 
+  // 批量删除报告
+  const handleBatchDelete = async () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请先选择要删除的报告');
+      return;
+    }
+
+    setBatchLoading(true);
+    try {
+      const deletePromises = selectedRowKeys.map(id => apiService.deleteReviewReport(Number(id)));
+      await Promise.all(deletePromises);
+      message.success(`成功删除 ${selectedRowKeys.length} 个报告`);
+      setSelectedRowKeys([]);
+      fetchReports();
+    } catch (error: any) {
+      message.error(`批量删除失败: ${error.message}`);
+    } finally {
+      setBatchLoading(false);
+    }
+  };
+
+  // 批量下载报告
+  const handleBatchDownload = async (format: 'word' | 'pdf') => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请先选择要下载的报告');
+      return;
+    }
+
+    setBatchLoading(true);
+    try {
+      const selectedReports = reports.filter(report => selectedRowKeys.includes(report.id));
+      
+      for (const report of selectedReports) {
+        await handleDownload(format, report);
+        // 添加延迟避免浏览器阻止多个下载
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      message.success(`成功下载 ${selectedRowKeys.length} 个${format.toUpperCase()}文件`);
+    } catch (error: any) {
+      message.error(`批量下载失败: ${error.message}`);
+    } finally {
+      setBatchLoading(false);
+    }
+  };
+
   // 查看报告详情
   const viewReportDetail = (report: ReviewReport) => {
     setSelectedReport(report);
@@ -98,37 +149,30 @@ const History: React.FC = () => {
   // 下载报告
   const handleDownload = async (format: 'word' | 'pdf', report: ReviewReport) => {
     if (!report.ai_report) {
-      message.warning('该报告没有AI生成内容');
+      message.warning('该报告没有AI生成的内容，无法下载');
       return;
     }
 
     try {
-      message.loading(`正在生成${format.toUpperCase()}文件...`, 0);
-      
-      // 直接使用报告ID下载
-      const downloadUrl = `${config.getFrontend().backend_url}/api/reports/download/${format}/${report.id}`;
-      const response = await fetch(downloadUrl);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
+             const response = await fetch(`${config.getFrontend().backend_url}/reports/download/${format}/${report.id}`, {
+        method: 'GET',
+      });
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `第${calculatePeriodNumber(reports, report)}期-${report.user_name}-复盘报告.${format === 'word' ? 'docx' : 'pdf'}`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      
-      message.destroy();
-      message.success(`${format.toUpperCase()}文件下载成功`);
-      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+                 a.download = `${report.user_name}_第${calculatePeriodNumber(reports, report)}周复盘报告.${format}`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        message.success(`${format.toUpperCase()}文件下载成功`);
+      } else {
+        message.error(`下载失败: ${response.statusText}`);
+      }
     } catch (error: any) {
-      message.destroy();
-      console.error('下载失败:', error);
       message.error(`下载失败: ${error.message}`);
     }
   };
@@ -150,6 +194,11 @@ const History: React.FC = () => {
         return Array.isArray(parsed) ? parsed : [];
       }
       
+      // 如果是null或undefined，返回空数组
+      if (data === null || data === undefined) {
+        return [];
+      }
+      
       // 其他情况返回空数组
       return [];
     } catch (error) {
@@ -158,47 +207,36 @@ const History: React.FC = () => {
     }
   };
 
-  // 判断是否为当前周的报告（用于高亮显示）
+  // 判断是否为当前周报告
   const isCurrentWeekReport = (report: ReviewReport) => {
-    const today = dayjs();
-    const reportStart = dayjs(report.date_range_start);
-    const reportEnd = dayjs(report.date_range_end);
-    
-    // 检查当前日期是否在报告时间范围内
-    return today.isAfter(reportStart.subtract(1, 'day')) && today.isBefore(reportEnd.add(1, 'day'));
+    const now = dayjs();
+    const start = dayjs(report.date_range_start);
+    const end = dayjs(report.date_range_end);
+    return now.isAfter(start) && now.isBefore(end);
   };
 
-  // 判断是否为最近保存的报告（7天内）
+  // 判断是否为最近报告（7天内）
   const isRecentReport = (report: ReviewReport) => {
-    const reportDate = dayjs(report.created_at);
-    const today = dayjs();
-    return today.diff(reportDate, 'day') <= 7;
+    const now = dayjs();
+    const created = dayjs(report.created_at);
+    return now.diff(created, 'day') <= 7;
   };
 
-  // 计算期数（根据复盘时间区间分组，同一区间使用相同期数）
+  // 计算期数（按周计算）
   const calculatePeriodNumber = (reports: ReviewReport[], currentReport: ReviewReport) => {
-    // 按复盘时间区间分组
-    const dateRangeGroups = new Map<string, ReviewReport[]>();
+    // 基准日期：2025年1月1日
+    const baseDate = dayjs('2025-01-01');
     
-    reports.forEach(report => {
-      const dateRangeKey = `${report.date_range_start}_${report.date_range_end}`;
-      if (!dateRangeGroups.has(dateRangeKey)) {
-        dateRangeGroups.set(dateRangeKey, []);
-      }
-      dateRangeGroups.get(dateRangeKey)!.push(report);
-    });
+    // 获取复盘期间的最后一天
+    const reportEndDate = dayjs(currentReport.date_range_end);
     
-    // 按时间区间排序，获取当前报告所在的区间索引
-    const sortedDateRanges = Array.from(dateRangeGroups.keys()).sort((a, b) => {
-      const [aStart] = a.split('_');
-      const [bStart] = b.split('_');
-      return dayjs(aStart).valueOf() - dayjs(bStart).valueOf();
-    });
+    // 计算从基准日期到复盘结束日期的天数
+    const daysDiff = reportEndDate.diff(baseDate, 'day');
     
-    const currentDateRangeKey = `${currentReport.date_range_start}_${currentReport.date_range_end}`;
-    const periodIndex = sortedDateRanges.findIndex(range => range === currentDateRangeKey);
+    // 计算周数（每周7天）
+    const weekNumber = Math.floor(daysDiff / 7) + 1;
     
-    return periodIndex + 1;
+    return weekNumber;
   };
 
   // 表格行样式
@@ -212,12 +250,12 @@ const History: React.FC = () => {
   // 表格列定义
   const columns = [
     {
-      title: '期数',
+      title: '周数',
       dataIndex: 'period_display',
       key: 'period_display',
       width: 120,
       render: (text: string, record: ReviewReport) => {
-        const periodNumber = calculatePeriodNumber(reports, record);
+        const weekNumber = calculatePeriodNumber(reports, record);
         const isCurrent = isCurrentWeekReport(record);
         
         let color = 'blue';
@@ -225,7 +263,7 @@ const History: React.FC = () => {
         
         return (
           <Tag color={color}>
-            {periodNumber}
+            第{weekNumber}周
             {isCurrent && <span style={{ marginLeft: 4 }}>🔥</span>}
           </Tag>
         );
@@ -361,19 +399,59 @@ const History: React.FC = () => {
   ];
 
   return (
-    <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
-      <Card>
-        <div style={{ marginBottom: 16 }}>
-          <Title level={3} style={{ margin: 0 }}>历史复盘报告</Title>
-          <Text type="secondary">按期数显示所有历史复盘报告，支持查看、下载和删除操作</Text>
+    <div className="history-page">
+      <Card className="history-card">
+        <div className="history-header">
+          <Title level={3} className="history-title">历史复盘报告</Title>
           
-          {/* 图例说明 */}
-          <div style={{ marginTop: 12, padding: '8px 12px', backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
-            <Text type="secondary" style={{ fontSize: '12px' }}>
-              <span style={{ color: '#52c41a', fontWeight: 'bold' }}>🔥 当前周报告</span> | 
-              <span style={{ color: '#fa8c16', fontWeight: 'bold' }}>⭐ 最近报告</span> | 
-              <span style={{ color: '#1890ff' }}>📋 历史报告</span>
-            </Text>
+          {/* 批量操作按钮 */}
+          <div className="batch-operations">
+            <Row gutter={[16, 16]}>
+              <Col xs={24} sm={24} md={24} lg={24} xl={24}>
+                <Space wrap className="batch-buttons">
+                  <Text className="selected-count">已选择 {selectedRowKeys.length} 项</Text>
+                  <Button
+                    type="primary"
+                    icon={<DownloadOutlined />}
+                    onClick={() => handleBatchDownload('word')}
+                    loading={batchLoading}
+                    disabled={selectedRowKeys.length === 0}
+                    className="batch-button"
+                  >
+                    <span className="button-text">批量下载Word</span>
+                  </Button>
+                  <Button
+                    type="primary"
+                    icon={<DownloadOutlined />}
+                    onClick={() => handleBatchDownload('pdf')}
+                    loading={batchLoading}
+                    disabled={selectedRowKeys.length === 0}
+                    className="batch-button"
+                  >
+                    <span className="button-text">批量下载PDF</span>
+                  </Button>
+                  <Popconfirm
+                    title={`确定要删除选中的 ${selectedRowKeys.length} 个报告吗？`}
+                    description="删除后无法恢复，请谨慎操作。"
+                    onConfirm={handleBatchDelete}
+                    okText="确定"
+                    cancelText="取消"
+                    disabled={selectedRowKeys.length === 0}
+                  >
+                    <Button
+                      type="primary"
+                      danger
+                      icon={<DeleteOutlined />}
+                      loading={batchLoading}
+                      disabled={selectedRowKeys.length === 0}
+                      className="batch-button"
+                    >
+                      <span className="button-text">批量删除</span>
+                    </Button>
+                  </Popconfirm>
+                </Space>
+              </Col>
+            </Row>
           </div>
         </div>
 
@@ -383,21 +461,32 @@ const History: React.FC = () => {
           rowKey="id"
           loading={loading}
           rowClassName={getRowClassName}
+          rowSelection={{
+            selectedRowKeys,
+            onChange: (newSelectedRowKeys) => {
+              setSelectedRowKeys(newSelectedRowKeys);
+            },
+          }}
           pagination={{
             showSizeChanger: true,
             showQuickJumper: true,
             showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
             pageSize: 10,
+            responsive: true,
+            size: 'small',
           }}
+          className="history-table"
+          scroll={{ x: 800 }}
         />
       </Card>
 
       {/* 报告详情模态框 */}
       <Modal
-        title={`第${selectedReport ? calculatePeriodNumber(reports, selectedReport) : ''}期 - ${selectedReport?.user_name} 复盘报告详情`}
+        title={`第${selectedReport ? calculatePeriodNumber(reports, selectedReport) : ''}周 - ${selectedReport?.user_name} 复盘报告详情`}
         open={detailModalVisible}
         onCancel={() => setDetailModalVisible(false)}
-        width={1000}
+        width="90vw"
+        className="detail-modal"
         footer={[
           <Button key="close" onClick={() => setDetailModalVisible(false)}>
             关闭
@@ -421,10 +510,10 @@ const History: React.FC = () => {
         ]}
       >
         {selectedReport && (
-          <div>
+          <div className="detail-content">
             {/* 基本信息 */}
-            <Descriptions title="基本信息" bordered style={{ marginBottom: 24 }}>
-              <Descriptions.Item label="期数">{calculatePeriodNumber(reports, selectedReport)}</Descriptions.Item>
+            <Descriptions title="基本信息" bordered style={{ marginBottom: 24 }} size="small">
+              <Descriptions.Item label="周数">第{calculatePeriodNumber(reports, selectedReport)}周</Descriptions.Item>
               <Descriptions.Item label="被复盘人">{selectedReport.user_name}</Descriptions.Item>
               <Descriptions.Item label="复盘时间">
                 {dayjs(selectedReport.date_range_start).format('YYYY-MM-DD')} 至 {dayjs(selectedReport.date_range_end).format('YYYY-MM-DD')}
@@ -445,7 +534,7 @@ const History: React.FC = () => {
             </Descriptions>
 
             {/* 上周复盘计划 */}
-            <Card title="上周复盘计划" style={{ marginBottom: 16 }}>
+            <Card title="上周复盘计划" style={{ marginBottom: 16 }} size="small">
               {(() => {
                 const lastWeekPlanData = parseJsonString(selectedReport.last_week_plan);
                 return lastWeekPlanData.length > 0 ? (
@@ -458,6 +547,7 @@ const History: React.FC = () => {
                       { title: '完成情况', dataIndex: 'completion', key: 'completion' },
                     ]}
                     size="small"
+                    scroll={{ x: 400 }}
                   />
                 ) : (
                   <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
@@ -468,7 +558,7 @@ const History: React.FC = () => {
             </Card>
 
             {/* 上周行动回顾 */}
-            <Card title="上周行动回顾" style={{ marginBottom: 16 }}>
+            <Card title="上周行动回顾" style={{ marginBottom: 16 }} size="small">
               {(() => {
                 const lastWeekActionsData = parseJsonString(selectedReport.last_week_actions);
                 return lastWeekActionsData.length > 0 ? (
@@ -476,13 +566,39 @@ const History: React.FC = () => {
                     dataSource={lastWeekActionsData}
                     pagination={false}
                     columns={[
-                      { title: '日期', dataIndex: 'day', key: 'day', width: 80 },
-                      { title: '白天-动作', dataIndex: 'morningAction', key: 'morningAction' },
-                      { title: '白天-结果', dataIndex: 'morningResult', key: 'morningResult' },
-                      { title: '晚上-动作', dataIndex: 'eveningAction', key: 'eveningAction' },
-                      { title: '晚上-结果', dataIndex: 'eveningResult', key: 'eveningResult' },
+                      { 
+                        title: '日期', 
+                        dataIndex: 'day', 
+                        key: 'day',
+                        width: 80
+                      },
+                      { 
+                        title: '上午行动', 
+                        dataIndex: 'morningAction', 
+                        key: 'morningAction',
+                        render: (text: string) => text || '无'
+                      },
+                      { 
+                        title: '上午结果', 
+                        dataIndex: 'morningResult', 
+                        key: 'morningResult',
+                        render: (text: string) => text || '无'
+                      },
+                      { 
+                        title: '下午行动', 
+                        dataIndex: 'eveningAction', 
+                        key: 'eveningAction',
+                        render: (text: string) => text || '无'
+                      },
+                      { 
+                        title: '下午结果', 
+                        dataIndex: 'eveningResult', 
+                        key: 'eveningResult',
+                        render: (text: string) => text || '无'
+                      },
                     ]}
                     size="small"
+                    scroll={{ x: 600 }}
                   />
                 ) : (
                   <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
@@ -493,7 +609,7 @@ const History: React.FC = () => {
             </Card>
 
             {/* 本周计划 */}
-            <Card title="本周计划" style={{ marginBottom: 16 }}>
+            <Card title="本周计划" style={{ marginBottom: 16 }} size="small">
               {(() => {
                 const weekPlanData = parseJsonString(selectedReport.week_plan);
                 return weekPlanData.length > 0 ? (
@@ -503,8 +619,10 @@ const History: React.FC = () => {
                     columns={[
                       { title: '任务', dataIndex: 'task', key: 'task' },
                       { title: '期望结果', dataIndex: 'expectedResult', key: 'expectedResult' },
+                      { title: '完成时间', dataIndex: 'deadline', key: 'deadline' },
                     ]}
                     size="small"
+                    scroll={{ x: 400 }}
                   />
                 ) : (
                   <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
@@ -514,33 +632,27 @@ const History: React.FC = () => {
               })()}
             </Card>
 
-            {/* 需协调事项 */}
+            {/* 协调事项 */}
             {selectedReport.coordination_items && (
-              <Card title="需协调事项" style={{ marginBottom: 16 }}>
-                <Text>{selectedReport.coordination_items}</Text>
+              <Card title="协调事项" style={{ marginBottom: 16 }} size="small">
+                <div style={{ whiteSpace: 'pre-wrap' }}>{selectedReport.coordination_items}</div>
               </Card>
             )}
 
             {/* 其他事项 */}
             {selectedReport.other_items && (
-              <Card title="其他事项" style={{ marginBottom: 16 }}>
-                <Text>{selectedReport.other_items}</Text>
+              <Card title="其他事项" style={{ marginBottom: 16 }} size="small">
+                <div style={{ whiteSpace: 'pre-wrap' }}>{selectedReport.other_items}</div>
               </Card>
             )}
 
-            {/* AI报告 */}
+            {/* AI生成报告 */}
             {selectedReport.ai_report && (
-              <Card title="AI生成报告">
-                <div style={{ 
-                  maxHeight: '400px', 
-                  overflow: 'auto',
-                  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-                  color: '#2c3e50'
-                }}>
+              <Card title="AI生成报告" size="small">
+                <div className="ai-report-content">
                   <ReactMarkdown 
                     remarkPlugins={[remarkGfm]}
                     components={{
-                      // 表格样式优化
                       table: ({node, ...props}) => (
                         <table 
                           {...props} 
@@ -559,14 +671,14 @@ const History: React.FC = () => {
                         <th 
                           {...props} 
                           style={{
-                            border: '1px solid #e8e8e8',
-                            padding: '16px 12px',
-                            backgroundColor: '#f8f9fa',
-                            fontWeight: '600',
-                            textAlign: 'left',
-                            fontSize: '14px',
+                            background: '#f8f9fa',
+                            fontWeight: 'bold',
                             color: '#2c3e50',
-                            borderBottom: '2px solid #dee2e6'
+                            borderBottom: '2px solid #dee2e6',
+                            padding: '12px 8px',
+                            border: '1px solid #e8e8e8',
+                            textAlign: 'left',
+                            verticalAlign: 'top'
                           }}
                         />
                       ),
@@ -575,159 +687,188 @@ const History: React.FC = () => {
                           {...props} 
                           style={{
                             border: '1px solid #e8e8e8',
-                            padding: '14px 12px',
+                            padding: '8px',
                             textAlign: 'left',
-                            fontSize: '14px',
-                            lineHeight: '1.6',
                             verticalAlign: 'top'
                           }}
                         />
                       ),
-                      // 标题样式优化
                       h1: ({node, ...props}) => (
-                        <h1 {...props} style={{ 
-                          fontSize: '28px', 
-                          fontWeight: '700', 
-                          marginBottom: '20px', 
-                          marginTop: '32px',
-                          color: '#1a365d',
-                          borderBottom: '3px solid #3182ce',
-                          paddingBottom: '8px'
-                        }} />
+                        <h1 
+                          {...props} 
+                          style={{
+                            color: '#1890ff',
+                            fontSize: '18pt',
+                            marginTop: '30px',
+                            marginBottom: '20px',
+                            borderBottom: '2px solid #1890ff',
+                            paddingBottom: '10px',
+                            pageBreakAfter: 'avoid'
+                          }}
+                        />
                       ),
                       h2: ({node, ...props}) => (
-                        <h2 {...props} style={{ 
-                          fontSize: '22px', 
-                          fontWeight: '600', 
-                          marginBottom: '16px', 
-                          marginTop: '28px', 
-                          color: '#2d3748',
-                          borderLeft: '4px solid #3182ce',
-                          paddingLeft: '12px'
-                        }} />
+                        <h2 
+                          {...props} 
+                          style={{
+                            color: '#1890ff',
+                            fontSize: '16pt',
+                            marginTop: '25px',
+                            marginBottom: '15px',
+                            pageBreakAfter: 'avoid'
+                          }}
+                        />
                       ),
                       h3: ({node, ...props}) => (
-                        <h3 {...props} style={{ 
-                          fontSize: '18px', 
-                          fontWeight: '600', 
-                          marginBottom: '12px', 
-                          marginTop: '20px', 
-                          color: '#4a5568',
-                          backgroundColor: '#f7fafc',
-                          padding: '8px 12px',
-                          borderRadius: '4px'
-                        }} />
+                        <h3 
+                          {...props} 
+                          style={{
+                            color: '#1890ff',
+                            fontSize: '14pt',
+                            marginTop: '20px',
+                            marginBottom: '10px',
+                            pageBreakAfter: 'avoid'
+                          }}
+                        />
                       ),
-                      // 段落样式优化
                       p: ({node, ...props}) => (
-                        <p {...props} style={{ 
-                          marginBottom: '16px', 
-                          lineHeight: '1.8',
-                          fontSize: '15px',
-                          color: '#2d3748'
-                        }} />
+                        <p 
+                          {...props} 
+                          style={{
+                            marginBottom: '12px',
+                            textAlign: 'justify',
+                            orphans: '3',
+                            widows: '3',
+                            fontSize: '12pt',
+                            lineHeight: '1.6',
+                            color: '#2d3748'
+                          }}
+                        />
                       ),
-                      // 列表样式优化
                       ul: ({node, ...props}) => (
-                        <ul {...props} style={{ 
-                          marginBottom: '20px', 
-                          paddingLeft: '24px',
-                          lineHeight: '1.8'
-                        }} />
+                        <ul 
+                          {...props} 
+                          style={{
+                            marginBottom: '20px',
+                            paddingLeft: '24px',
+                            lineHeight: '1.8'
+                          }}
+                        />
                       ),
                       ol: ({node, ...props}) => (
-                        <ol {...props} style={{ 
-                          marginBottom: '20px', 
-                          paddingLeft: '24px',
-                          lineHeight: '1.8'
-                        }} />
+                        <ol 
+                          {...props} 
+                          style={{
+                            marginBottom: '20px',
+                            paddingLeft: '24px',
+                            lineHeight: '1.8'
+                          }}
+                        />
                       ),
                       li: ({node, ...props}) => (
-                        <li {...props} style={{ 
-                          marginBottom: '8px',
-                          fontSize: '15px',
-                          color: '#2d3748'
-                        }} />
+                        <li 
+                          {...props} 
+                          style={{
+                            marginBottom: '8px',
+                            fontSize: '12pt',
+                            color: '#2d3748'
+                          }}
+                        />
                       ),
-                      // 强调文本样式优化
                       strong: ({node, ...props}) => (
-                        <strong {...props} style={{ 
-                          fontWeight: '600', 
-                          color: '#3182ce',
-                          backgroundColor: '#ebf8ff',
-                          padding: '2px 4px',
-                          borderRadius: '3px'
-                        }} />
+                        <strong 
+                          {...props} 
+                          style={{
+                            fontWeight: '600',
+                            color: '#3182ce',
+                            backgroundColor: '#ebf8ff',
+                            padding: '2px 4px',
+                            borderRadius: '3px'
+                          }}
+                        />
                       ),
                       em: ({node, ...props}) => (
-                        <em {...props} style={{ 
-                          fontStyle: 'italic', 
-                          color: '#718096',
-                          backgroundColor: '#f7fafc',
-                          padding: '1px 3px',
-                          borderRadius: '2px'
-                        }} />
+                        <em 
+                          {...props} 
+                          style={{
+                            fontStyle: 'italic',
+                            color: '#718096',
+                            backgroundColor: '#f7fafc',
+                            padding: '1px 3px',
+                            borderRadius: '2px'
+                          }}
+                        />
                       ),
-                      // 代码块样式优化
                       code: ({node, className, ...props}: any) => {
-                        const isInline = className && !className.includes('language-');
-                        if (isInline) {
-                          return (
-                            <code {...props} style={{
+                        const isInline = !className;
+                        return isInline ? (
+                          <code 
+                            {...props} 
+                            style={{
                               backgroundColor: '#f1f5f9',
                               padding: '2px 6px',
                               borderRadius: '4px',
-                              fontSize: '14px',
-                              fontFamily: 'Monaco, Consolas, "Courier New", monospace',
+                              fontSize: '11pt',
+                              fontFamily: 'Monaco, Consolas, Courier New, monospace',
                               color: '#e53e3e'
-                            }} />
-                          );
-                        }
-                        return (
-                          <code {...props} style={{
-                            backgroundColor: '#f7fafc',
-                            padding: '16px',
-                            borderRadius: '6px',
-                            fontSize: '14px',
-                            fontFamily: 'Monaco, Consolas, "Courier New", monospace',
-                            color: '#2d3748',
-                            display: 'block',
-                            overflow: 'auto',
-                            border: '1px solid #e2e8f0'
-                          }} />
+                            }}
+                          />
+                        ) : (
+                          <pre 
+                            style={{
+                              backgroundColor: '#f7fafc',
+                              padding: '16px',
+                              borderRadius: '6px',
+                              fontSize: '11pt',
+                              fontFamily: 'Monaco, Consolas, Courier New, monospace',
+                              color: '#2d3748',
+                              display: 'block',
+                              overflow: 'auto',
+                              border: '1px solid #e2e8f0',
+                              margin: '15px 0'
+                            }}
+                          >
+                            <code {...props} />
+                          </pre>
                         );
                       },
-                      // 引用块样式优化
                       blockquote: ({node, ...props}) => (
-                        <blockquote {...props} style={{
-                          borderLeft: '4px solid #3182ce',
-                          paddingLeft: '16px',
-                          margin: '20px 0',
-                          backgroundColor: '#f7fafc',
-                          padding: '16px',
-                          borderRadius: '4px',
-                          fontStyle: 'italic',
-                          color: '#4a5568'
-                        }} />
+                        <blockquote 
+                          {...props} 
+                          style={{
+                            borderLeft: '4px solid #3182ce',
+                            paddingLeft: '16px',
+                            margin: '20px 0',
+                            backgroundColor: '#f7fafc',
+                            padding: '16px',
+                            borderRadius: '4px',
+                            fontStyle: 'italic',
+                            color: '#4a5568'
+                          }}
+                        />
                       ),
-                      // 分割线样式优化
                       hr: ({node, ...props}) => (
-                        <hr {...props} style={{
-                          border: 'none',
-                          height: '2px',
-                          backgroundColor: '#e2e8f0',
-                          margin: '32px 0',
-                          borderRadius: '1px'
-                        }} />
+                        <hr 
+                          {...props} 
+                          style={{
+                            border: 'none',
+                            height: '2px',
+                            backgroundColor: '#e2e8f0',
+                            margin: '32px 0',
+                            borderRadius: '1px'
+                          }}
+                        />
                       ),
-                      // 链接样式优化
                       a: ({node, ...props}) => (
-                        <a {...props} style={{
-                          color: '#3182ce',
-                          textDecoration: 'none',
-                          borderBottom: '1px solid #3182ce',
-                          paddingBottom: '1px'
-                        }} />
+                        <a 
+                          {...props} 
+                          style={{
+                            color: '#3182ce',
+                            textDecoration: 'none',
+                            borderBottom: '1px solid #3182ce',
+                            paddingBottom: '1px'
+                          }}
+                        />
                       )
                     }}
                   >
@@ -741,13 +882,142 @@ const History: React.FC = () => {
       </Modal>
 
       <style>{`
-        .current-week-row {
-          background-color: #f6ffed !important;
-          border-left: 3px solid #52c41a;
+        .history-page {
+          padding: 0;
+          max-width: 100%;
         }
         
-        .current-week-row:hover {
-          background-color: #d9f7be !important;
+        .history-card {
+          background: white;
+          border-radius: 12px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          margin: 0;
+        }
+        
+        .history-header {
+          margin-bottom: 16px;
+        }
+        
+        .history-title {
+          margin: 0 0 16px 0 !important;
+          font-size: 24px;
+          font-weight: 600;
+        }
+        
+        .batch-operations {
+          margin-bottom: 16px;
+        }
+        
+        .batch-buttons {
+          width: 100%;
+          justify-content: flex-start;
+        }
+        
+        .selected-count {
+          font-weight: 500;
+          color: #666;
+        }
+        
+        .batch-button {
+          margin-right: 8px;
+          margin-bottom: 8px;
+        }
+        
+        .button-text {
+          display: inline;
+        }
+        
+        .history-table {
+          overflow-x: auto;
+        }
+        
+        .detail-modal .ant-modal-content {
+          border-radius: 12px;
+        }
+        
+        .detail-content {
+          max-height: 70vh;
+          overflow-y: auto;
+        }
+        
+        .ai-report-content {
+          max-height: 400px;
+          overflow: auto;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+          color: #2c3e50;
+        }
+        
+        @media (max-width: 768px) {
+          .history-title {
+            font-size: 20px !important;
+          }
+          
+          .batch-buttons {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          
+          .batch-button {
+            margin-right: 0;
+            margin-bottom: 8px;
+            width: 100%;
+          }
+          
+          .button-text {
+            display: block;
+          }
+          
+          .selected-count {
+            text-align: center;
+            display: block;
+            margin-bottom: 8px;
+          }
+          
+          .history-table {
+            font-size: 12px;
+          }
+          
+          .detail-modal {
+            width: 95vw !important;
+            max-width: 95vw;
+          }
+          
+          .detail-content {
+            max-height: 60vh;
+          }
+          
+          .ai-report-content {
+            max-height: 300px;
+            font-size: 14px;
+          }
+        }
+        
+        @media (max-width: 480px) {
+          .history-title {
+            font-size: 18px !important;
+          }
+          
+          .batch-buttons {
+            gap: 8px;
+          }
+          
+          .history-table {
+            font-size: 11px;
+          }
+          
+          .detail-modal {
+            width: 98vw !important;
+            max-width: 98vw;
+          }
+          
+          .detail-content {
+            max-height: 50vh;
+          }
+          
+          .ai-report-content {
+            max-height: 250px;
+            font-size: 12px;
+          }
         }
       `}</style>
     </div>

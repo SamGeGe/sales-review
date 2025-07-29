@@ -230,21 +230,22 @@ const Users: React.FC = () => {
   ];
 
   return (
-    <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
-      <Card>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <Title level={3} style={{ margin: 0 }}>被复盘人管理</Title>
+    <div className="users-page">
+      <Card className="users-card">
+        <div className="users-header">
+          <Title level={3} className="users-title">被复盘人管理</Title>
           <Button
             type="primary"
             icon={<PlusOutlined />}
             onClick={openAddModal}
+            className="add-user-button"
           >
             添加用户
           </Button>
         </div>
 
         {error ? (
-          <div style={{ textAlign: 'center', padding: '20px', color: '#ff4d4f' }}>
+          <div className="error-container">
             <p>{error}</p>
             <Button onClick={fetchUsers}>重试</Button>
           </div>
@@ -254,10 +255,14 @@ const Users: React.FC = () => {
             dataSource={Array.isArray(users) ? users : []}
             rowKey="id"
             loading={loading}
+            className="users-table"
+            scroll={{ x: 600 }}
             pagination={{
               showSizeChanger: true,
               showQuickJumper: true,
               showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
+              responsive: true,
+              size: 'small',
             }}
           />
         )}
@@ -269,6 +274,8 @@ const Users: React.FC = () => {
         onCancel={closeModal}
         footer={null}
         destroyOnHidden
+        className="user-modal"
+        width="90vw"
       >
         <Form
           form={form}
@@ -287,7 +294,7 @@ const Users: React.FC = () => {
           </Form.Item>
 
           <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
-            <Space>
+            <Space wrap>
               <Button onClick={closeModal}>取消</Button>
               <Button type="primary" htmlType="submit">
                 {editingUser ? '更新' : '添加'}
@@ -296,6 +303,106 @@ const Users: React.FC = () => {
           </Form.Item>
         </Form>
       </Modal>
+
+      <style>{`
+        .users-page {
+          padding: 16px;
+          max-width: 1200px;
+          margin: 0 auto;
+        }
+        
+        .users-card {
+          background: white;
+          border-radius: 12px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .users-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 16px;
+          flex-wrap: wrap;
+          gap: 16px;
+        }
+        
+        .users-title {
+          margin: 0 !important;
+          font-size: 24px;
+          font-weight: 600;
+        }
+        
+        .add-user-button {
+          flex-shrink: 0;
+        }
+        
+        .error-container {
+          text-align: center;
+          padding: 20px;
+          color: #ff4d4f;
+        }
+        
+        .users-table {
+          overflow-x: auto;
+        }
+        
+        .user-modal .ant-modal-content {
+          border-radius: 12px;
+        }
+        
+        @media (max-width: 768px) {
+          .users-page {
+            padding: 12px;
+          }
+          
+          .users-header {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 12px;
+          }
+          
+          .users-title {
+            font-size: 20px !important;
+            text-align: center;
+          }
+          
+          .add-user-button {
+            width: 100%;
+          }
+          
+          .users-table {
+            font-size: 12px;
+          }
+          
+          .user-modal {
+            width: 95vw !important;
+            max-width: 95vw;
+          }
+        }
+        
+        @media (max-width: 480px) {
+          .users-page {
+            padding: 8px;
+          }
+          
+          .users-header {
+            gap: 8px;
+          }
+          
+          .users-title {
+            font-size: 18px !important;
+          }
+          
+          .users-table {
+            font-size: 11px;
+          }
+          
+          .user-modal {
+            width: 98vw !important;
+            max-width: 98vw;
+          }
+        }
+      `}</style>
     </div>
   );
 };

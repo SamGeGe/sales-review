@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Form, DatePicker, Select, Input, Button, Progress, message, Space, Typography } from 'antd';
+import { Card, Form, DatePicker, Select, Input, Button, Progress, message, Space, Typography, Row, Col } from 'antd';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import dayjs from 'dayjs';
@@ -618,10 +618,9 @@ ${weekPlanRows.filter(row => row.task.trim() || row.expectedResult.trim()).map((
     const tables = generateStructuredTables();
     const selectedUserName = userOptions.find(u => u.value === selectedUser)?.label || '未知用户';
     
-    // 使用北京时间而不是UTC时间
-    const now = new Date();
-    const beijingTime = new Date(now.getTime() + (8 * 60 * 60 * 1000)); // UTC+8
-    const submissionTime = beijingTime.toISOString().replace('T', ' ').replace('Z', '');
+    // 使用dayjs获取北京时间
+    const beijingTime = dayjs().tz('Asia/Shanghai');
+    const submissionTime = beijingTime.format('YYYY-MM-DD HH:mm:ss');
     
     return {
       basicInfo: {
@@ -774,7 +773,7 @@ ${weekPlanRows.filter(row => row.task.trim() || row.expectedResult.trim()).map((
         otherItems,
         pageContext,
         validationInfo,
-        submissionTime: new Date().toISOString(),
+        submissionTime: dayjs().tz('Asia/Shanghai').format('YYYY-MM-DD HH:mm:ss'),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         // 添加结构化表格数据
         structuredTables: structuredReport.tables
@@ -933,12 +932,12 @@ ${weekPlanRows.filter(row => row.task.trim() || row.expectedResult.trim()).map((
   };
 
   return (
-    <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
+    <div className="review-page">
       {/* 后端连接状态 */}
-      <div style={{ marginBottom: 16 }}>
+      <div className="connection-status">
         {!backendConnected ? (
           <Card size="small" style={{ backgroundColor: '#fff2f0', borderColor: '#ffccc7' }}>
-            <Space>
+            <Space wrap>
               <Text type="danger">⚠️ 后端服务未连接</Text>
               <Button size="small" onClick={checkBackendConnection}>重试连接</Button>
             </Space>
@@ -950,52 +949,57 @@ ${weekPlanRows.filter(row => row.task.trim() || row.expectedResult.trim()).map((
         )}
       </div>
 
-      <Card title="营销中心周复盘系统" style={{ marginBottom: 24 }}>
+      <Card title="营销中心周复盘系统" className="review-card">
       <Form layout="vertical">
           {/* 基本信息 */}
-          <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
-            <Form.Item 
-              label={<><RequiredMark />复盘时间区间</>}
-              validateStatus={validateStatus.dateRange}
-              help={helpText.dateRange}
-              style={{ flex: 1 }}
-            >
-          <RangePicker
-                style={{ width: '100%', minWidth: 400 }}
-            value={dateRange}
-                onChange={handleDateRangeChange}
-                placeholder={['开始日期', '结束日期']}
-                cellRender={dateCellRender}
-          />
-        </Form.Item>
-
-            <Form.Item 
-              label={<><RequiredMark />被复盘人</>}
-              validateStatus={validateStatus.selectedUser}
-              help={helpText.selectedUser}
-              style={{ flex: 1 }}
-            >
-          <Select
-            placeholder="请选择被复盘人"
-            value={selectedUser}
-                onChange={handleUserChange}
-                options={userOptions}
-              />
-            </Form.Item>
-
-            <Form.Item 
-              label={<><RequiredMark />复盘方式</>}
-              validateStatus={validateStatus.reviewMethod}
-              help={helpText.reviewMethod}
-              style={{ flex: 1 }}
-            >
-              <Select
-                placeholder="请选择复盘方式"
-                value={reviewMethod}
-                onChange={setReviewMethod}
-                options={reviewMethodOptions}
-              />
-            </Form.Item>
+          <div className="basic-info">
+            <Row gutter={[16, 16]}>
+              <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                <Form.Item 
+                  label={<><RequiredMark />复盘时间区间</>}
+                  validateStatus={validateStatus.dateRange}
+                  help={helpText.dateRange}
+                >
+                  <RangePicker
+                    style={{ width: '100%' }}
+                    value={dateRange}
+                    onChange={handleDateRangeChange}
+                    placeholder={['开始日期', '结束日期']}
+                    cellRender={dateCellRender}
+                  />
+                </Form.Item>
+              </Col>
+              
+              <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                <Form.Item 
+                  label={<><RequiredMark />被复盘人</>}
+                  validateStatus={validateStatus.selectedUser}
+                  help={helpText.selectedUser}
+                >
+                  <Select
+                    placeholder="请选择被复盘人"
+                    value={selectedUser}
+                    onChange={handleUserChange}
+                    options={userOptions}
+                  />
+                </Form.Item>
+              </Col>
+              
+              <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                <Form.Item 
+                  label={<><RequiredMark />复盘方式</>}
+                  validateStatus={validateStatus.reviewMethod}
+                  help={helpText.reviewMethod}
+                >
+                  <Select
+                    placeholder="请选择复盘方式"
+                    value={reviewMethod}
+                    onChange={setReviewMethod}
+                    options={reviewMethodOptions}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
           </div>
 
           {/* 上周复盘计划 */}
@@ -1578,21 +1582,23 @@ ${weekPlanRows.filter(row => row.task.trim() || row.expectedResult.trim()).map((
                 <Button
                   type="primary"
                   onClick={handleLockAndSave}
-                  disabled={isLocked}
+                  disabled={isLocked || isGenerating}
                   style={{ marginRight: 8 }}
+                  loading={isGenerating}
                 >
-                  锁定并保存
+                  {isGenerating ? '生成中...' : '锁定并保存'}
                 </Button>
                 <Button
                   onClick={handleRegenerate}
-                  disabled={isLocked}
+                  disabled={isLocked || isGenerating}
                   style={{ marginRight: 8 }}
+                  loading={isGenerating}
                 >
-                  重新生成
+                  {isGenerating ? '生成中...' : '重新生成'}
                 </Button>
                 <Button
                   onClick={() => handleDownload('word')}
-                  disabled={isLocked}
+                  disabled={isLocked || isGenerating}
                   icon={<DownloadOutlined />}
                   style={{ marginRight: 8 }}
                 >
@@ -1600,7 +1606,7 @@ ${weekPlanRows.filter(row => row.task.trim() || row.expectedResult.trim()).map((
                 </Button>
                 <Button
                   onClick={() => handleDownload('pdf')}
-                  disabled={isLocked}
+                  disabled={isLocked || isGenerating}
                   icon={<DownloadOutlined />}
                 >
                   下载PDF
@@ -1610,6 +1616,121 @@ ${weekPlanRows.filter(row => row.task.trim() || row.expectedResult.trim()).map((
           )}
         </Card>
       )}
+      
+      <style>{`
+        .review-page {
+          padding: 16px;
+          max-width: 1200px;
+          margin: 0 auto;
+        }
+        
+        .connection-status {
+          margin-bottom: 16px;
+        }
+        
+        .review-card {
+          margin-bottom: 24px;
+        }
+        
+        .basic-info {
+          margin-bottom: 24px;
+        }
+        
+        .review-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 16px;
+          overflow-x: auto;
+        }
+        
+        .review-table th,
+        .review-table td {
+          border: 1px solid #d9d9d9;
+          padding: 8px;
+          text-align: center;
+        }
+        
+        .review-table th {
+          background-color: #fafafa;
+        }
+        
+        .report-content {
+          max-height: 600px;
+          overflow-y: auto;
+          padding: 16px;
+          background: #f8f9fa;
+          border-radius: 8px;
+          border: 1px solid #e9ecef;
+        }
+        
+        .report-actions {
+          margin-top: 24px;
+          padding: 16px;
+          background-color: #f8f9fa;
+          border-radius: 8px;
+          border: 1px solid #e9ecef;
+        }
+        
+        @media (max-width: 768px) {
+          .review-page {
+            padding: 12px;
+          }
+          
+          .review-card {
+            margin-bottom: 16px;
+          }
+          
+          .basic-info {
+            margin-bottom: 16px;
+          }
+          
+          .review-table {
+            font-size: 12px;
+          }
+          
+          .review-table th,
+          .review-table td {
+            padding: 4px;
+          }
+          
+          .report-content {
+            max-height: 400px;
+            padding: 12px;
+            font-size: 14px;
+          }
+          
+          .report-actions {
+            margin-top: 16px;
+            padding: 12px;
+          }
+        }
+        
+        @media (max-width: 480px) {
+          .review-page {
+            padding: 8px;
+          }
+          
+          .review-table {
+            font-size: 11px;
+          }
+          
+          .review-table th,
+          .review-table td {
+            padding: 2px;
+          }
+          
+          .report-content {
+            max-height: 300px;
+            padding: 8px;
+            font-size: 12px;
+          }
+          
+          .report-actions {
+            margin-top: 12px;
+            padding: 8px;
+          }
+        }
+      `}</style>
     </div>
   );
 };

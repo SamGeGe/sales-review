@@ -42,7 +42,9 @@ app.use('/api/users', require('./routes/users'));
 // 健康检查
 app.get('/health', (req, res) => {
   Logger.info('健康检查请求', { path: req.path });
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  // 使用北京时间
+  const beijingTime = new Date(new Date().getTime() + (8 * 60 * 60 * 1000));
+  res.json({ status: 'ok', timestamp: beijingTime.toISOString() });
 });
 
 // 错误处理中间件

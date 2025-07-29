@@ -7,6 +7,86 @@ body, #root {
   background-attachment: fixed;
 }
 
+/* 应用头部样式 */
+.app-header {
+  display: flex;
+  align-items: center;
+  background: #fff;
+  box-shadow: 0 2px 8px #f0f1f2;
+  padding: 0 24px;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.logo-section {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.logo {
+  height: 48px;
+  margin-right: 16px;
+}
+
+.app-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1890ff;
+  letter-spacing: 2px;
+  white-space: nowrap;
+}
+
+.desktop-menu {
+  margin-left: auto;
+  min-width: 400px;
+  flex-shrink: 0;
+}
+
+.mobile-menu-button {
+  display: none;
+  font-size: 18px;
+  padding: 8px;
+}
+
+/* 应用内容区样式 */
+.app-content {
+  padding: 24px;
+  background: none;
+  flex: 1;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* 应用底部样式 */
+.app-footer {
+  text-align: center;
+  color: #888;
+  padding: 16px 24px;
+  background: #fff;
+  border-top: 1px solid #f0f0f0;
+}
+
+/* 移动端抽屉样式 */
+.mobile-drawer .ant-drawer-body {
+  padding: 0;
+}
+
+.mobile-drawer .ant-menu {
+  border: none;
+}
+
 /* 响应式内容区通用样式 */
 .responsive-center-card {
   background: white;
@@ -21,25 +101,101 @@ body, #root {
   align-items: center;
 }
 
-@media (max-width: 600px) {
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .app-header {
+    padding: 0 16px;
+  }
+  
+  .header-content {
+    padding: 0;
+  }
+  
+  .logo {
+    height: 36px;
+    margin-right: 12px;
+  }
+  
+  .app-title {
+    font-size: 18px;
+    letter-spacing: 1px;
+  }
+  
+  .desktop-menu {
+    display: none;
+  }
+  
+  .mobile-menu-button {
+    display: block;
+  }
+  
+  .app-content {
+    padding: 16px;
+  }
+  
+  .app-footer {
+    padding: 12px 16px;
+    font-size: 14px;
+  }
+  
   .responsive-center-card {
     padding: 16px;
-    margin: 12px auto;
+    margin: 16px auto;
     max-width: 98vw;
     border-radius: 12px;
   }
+  
   .responsive-center-card img {
     width: 80px !important;
     height: 80px !important;
   }
+  
   .responsive-center-card h1 {
     font-size: 1.5rem !important;
   }
+  
   .responsive-center-card h2 {
     font-size: 1.1rem !important;
   }
+  
   .responsive-center-card p {
     font-size: 1rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-header {
+    padding: 0 12px;
+  }
+  
+  .logo {
+    height: 32px;
+    margin-right: 8px;
+  }
+  
+  .app-title {
+    font-size: 16px;
+    letter-spacing: 0.5px;
+  }
+  
+  .app-content {
+    padding: 12px;
+  }
+  
+  .app-footer {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+}
+
+/* 超小屏幕适配 */
+@media (max-width: 360px) {
+  .app-title {
+    font-size: 14px;
+  }
+  
+  .logo {
+    height: 28px;
   }
 }
 

@@ -358,7 +358,7 @@ ${Object.entries(pageContext.otherFields || {}).map(([key, field]) =>
         .replace('{weekPlan}', formattedData.weekPlan)
         .replace('{coordinationItems}', formattedData.coordinationItems)
         .replace('{otherItems}', formattedData.otherItems)
-        .replace('{submissionTime}', formattedData.submissionTime || new Date().toISOString());
+        .replace('{submissionTime}', formattedData.submissionTime || new Date(new Date().getTime() + (8 * 60 * 60 * 1000)).toISOString());
 
       // 替换结构化表格数据
       if (formattedData.structuredTables) {

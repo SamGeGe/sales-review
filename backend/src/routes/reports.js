@@ -102,7 +102,7 @@ router.post('/generate-stream', async (req, res) => {
     res.write(`data: ${JSON.stringify({
       type: 'complete',
       report: fullReport,
-      timestamp: new Date().toISOString()
+      timestamp: new Date(new Date().getTime() + (8 * 60 * 60 * 1000)).toISOString()
     })}\n\n`);
 
     res.end();
