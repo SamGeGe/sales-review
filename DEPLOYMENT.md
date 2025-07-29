@@ -1,32 +1,31 @@
-# 部署详细指南
+# 部署指南
 
-## 📋 部署概览
+## 🚀 快速部署
 
-本指南提供销售复盘系统的完整部署方案，支持本地开发、Docker容器化和Linux服务器部署。
+本指南提供销售复盘系统的简化部署方案，支持开发模式和Docker模式。
 
-## 🚀 部署方案
+## 📋 部署方案
 
-### 方案一：本地开发部署
-- **适用场景**: 开发调试、功能测试
+### 方案一：开发模式
+- **适用场景**: 本地开发、功能测试
 - **端口**: 前端 6090, 后端 6091
 - **特点**: 快速启动、实时热重载
 
-### 方案二：Docker容器化部署
+### 方案二：Docker模式
 - **适用场景**: 生产环境、服务器部署
 - **端口**: 前端 6092, 后端 6093
 - **特点**: 环境一致、易于管理
 
-### 方案三：Linux服务器部署
-- **适用场景**: 公网访问、企业环境
-- **特点**: 完整的安全配置、SSL支持
+## 🛠️ 开发模式部署
 
-## 🛠️ 本地开发部署
-
-### 环境准备
+### Mac/Linux 环境准备
 
 1. **安装Node.js**
    ```bash
-   # 下载并安装Node.js 18+
+   # Mac (使用Homebrew)
+   brew install node
+   
+   # Linux (Ubuntu/Debian)
    curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
    sudo apt-get install -y nodejs
    
@@ -95,21 +94,24 @@ cd frontend && npm start &
 curl http://localhost:6091/health
 curl http://localhost:6090
 
-# 查看日志
-tail -f backend/logs/app.log
+# 访问应用
+# 前端: http://localhost:6090
+# 后端: http://localhost:6091
 ```
 
-## 🐳 Docker容器化部署
+## 🐳 Docker模式部署
 
 ### 环境准备
 
 1. **安装Docker**
    ```bash
-   # Ubuntu/Debian
+   # Mac
+   # 下载并安装 Docker Desktop
+   # https://www.docker.com/products/docker-desktop
+   
+   # Linux (Ubuntu/Debian)
    curl -fsSL https://get.docker.com -o get-docker.sh
    sudo sh get-docker.sh
-   
-   # 启动Docker服务
    sudo systemctl start docker
    sudo systemctl enable docker
    
@@ -126,8 +128,7 @@ tail -f backend/logs/app.log
    {
      "registry-mirrors": [
        "https://docker.mirrors.ustc.edu.cn",
-       "https://hub-mirror.c.163.com",
-       "https://mirror.baidubce.com"
+       "https://hub-mirror.c.163.com"
      ]
    }
    EOF
@@ -160,6 +161,53 @@ tail -f backend/logs/app.log
    - 前端: http://localhost:6092
    - 后端: http://localhost:6093
 
+### Docker镜像问题解决
+
+如果遇到镜像拉取失败的问题，可以尝试以下解决方案：
+
+#### 方案1：使用官方镜像（推荐）
+```bash
+# 当前Dockerfile已使用官方镜像
+docker-compose build
+```
+
+#### 方案2：使用备用镜像源
+如果官方镜像无法访问，可以修改Dockerfile：
+
+```bash
+# 编辑Dockerfile，将第一行改为：
+# FROM ccr.ccs.tencentyun.com/library/node:18-alpine
+# 或
+# FROM registry.cn-hangzhou.aliyuncs.com/nodejs/node:18-alpine
+
+# 然后重新构建
+docker-compose build --no-cache
+```
+
+#### 方案3：手动拉取镜像
+```bash
+# 手动拉取Node.js镜像
+docker pull node:18-alpine
+
+# 然后构建
+docker-compose build
+```
+
+#### 方案4：使用代理
+```bash
+# 设置Docker代理
+sudo mkdir -p /etc/systemd/system/docker.service.d
+sudo tee /etc/systemd/system/docker.service.d/http-proxy.conf <<EOF
+[Service]
+Environment="HTTP_PROXY=http://your-proxy:port"
+Environment="HTTPS_PROXY=http://your-proxy:port"
+Environment="NO_PROXY=localhost,127.0.0.1"
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+```
+
 ### 管理命令
 
 ```bash
@@ -178,64 +226,26 @@ docker-compose up -d
 docker stats
 ```
 
-## 🖥️ Linux服务器部署
-
-### 方案一：标准部署
-
-1. **下载部署脚本**
-   ```bash
-   wget https://raw.githubusercontent.com/your-username/sales-review/main/deploy-linux.sh
-   chmod +x deploy-linux.sh
-   ```
-
-2. **运行部署**
-   ```bash
-   ./deploy-linux.sh
-   ```
-
-3. **配置防火墙**
-   ```bash
-   sudo ./setup-firewall.sh
-   ```
-
-### 方案二：国内服务器优化部署
-
-1. **下载优化脚本**
-   ```bash
-   wget https://raw.githubusercontent.com/your-username/sales-review/main/deploy-china.sh
-   chmod +x deploy-china.sh
-   ```
-
-2. **运行部署**
-   ```bash
-   ./deploy-china.sh
-   ```
-
-### 部署脚本功能
-
-- ✅ 自动安装Docker和Docker Compose
-- ✅ 配置国内镜像源
-- ✅ 创建系统服务
-- ✅ 配置防火墙
-- ✅ 设置Nginx反向代理
-- ✅ 配置SSL证书（可选）
-
 ## 🌐 公网访问配置
 
-### Nginx反向代理配置
+### 使用Nginx反向代理
 
 1. **安装Nginx**
    ```bash
+   # Ubuntu/Debian
    sudo apt update
    sudo apt install nginx
+   
+   # Mac
+   brew install nginx
    ```
 
-2. **配置站点**
+2. **配置Nginx**
    ```bash
    # 复制配置文件
    sudo cp nginx.conf /etc/nginx/sites-available/sales-review
    
-   # 编辑配置
+   # 编辑配置（替换your-domain.com为您的域名）
    sudo nano /etc/nginx/sites-available/sales-review
    
    # 启用站点
@@ -248,204 +258,80 @@ docker stats
    sudo systemctl restart nginx
    ```
 
-3. **配置SSL证书**
+3. **配置SSL证书（可选）**
    ```bash
    # 安装Certbot
    sudo apt install certbot python3-certbot-nginx
    
    # 获取证书
    sudo certbot --nginx -d your-domain.com
-   
-   # 设置自动续期
-   sudo crontab -e
-   # 添加: 0 12 * * * /usr/bin/certbot renew --quiet
    ```
 
 ### 防火墙配置
 
 ```bash
-# 运行防火墙配置脚本
-sudo ./setup-firewall.sh
-
-# 手动配置（可选）
+# 开放必要端口
 sudo ufw allow 22/tcp
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
 sudo ufw enable
 ```
 
-## 🔧 系统服务管理
+## 🔧 常用管理命令
 
-### 创建系统服务
+### 开发模式管理
 
 ```bash
-# 创建服务文件
-sudo tee /etc/systemd/system/sales-review.service <<EOF
-[Unit]
-Description=Sales Review System
-After=docker.service
-Requires=docker.service
+# 启动开发环境
+./start-local.sh
 
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-WorkingDirectory=/opt/sales-review
-ExecStart=/usr/local/bin/docker-compose up -d
-ExecStop=/usr/local/bin/docker-compose down
-TimeoutStartSec=0
+# 停止服务
+pkill -f "node.*backend"
+pkill -f "react-scripts"
 
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# 启用服务
-sudo systemctl daemon-reload
-sudo systemctl enable sales-review
-sudo systemctl start sales-review
+# 查看端口占用
+lsof -i :6090
+lsof -i :6091
 ```
 
-### 服务管理命令
+### Docker模式管理
 
 ```bash
 # 启动服务
-sudo systemctl start sales-review
+docker-compose up -d
 
 # 停止服务
-sudo systemctl stop sales-review
-
-# 重启服务
-sudo systemctl restart sales-review
-
-# 查看状态
-sudo systemctl status sales-review
+docker-compose down
 
 # 查看日志
-sudo journalctl -u sales-review -f
-```
-
-## 📊 监控和日志
-
-### 健康检查
-
-```bash
-# 检查后端健康状态
-curl -f http://localhost:6093/health
-
-# 检查前端服务
-curl -f http://localhost:6092
-
-# 检查数据库连接
-sqlite3 backend/data/sales_review.db "SELECT COUNT(*) FROM users;"
-```
-
-### 日志管理
-
-```bash
-# 查看Docker日志
 docker-compose logs -f
 
-# 查看系统服务日志
-sudo journalctl -u sales-review -f
-
-# 查看Nginx日志
-sudo tail -f /var/log/nginx/access.log
-sudo tail -f /var/log/nginx/error.log
-
-# 查看应用日志
-tail -f backend/logs/app.log
+# 重启服务
+docker-compose restart
 ```
 
-### 性能监控
+### 数据库管理
 
 ```bash
-# 查看系统资源
-htop
-df -h
-free -h
+# 重置数据库
+rm backend/data/sales_review.db
 
-# 查看Docker资源使用
-docker stats
-
-# 查看网络连接
-netstat -tlnp
-ss -tlnp
+# 查看数据库
+sqlite3 backend/data/sales_review.db ".tables"
 ```
-
-## 🔒 安全配置
-
-### 基础安全设置
-
-1. **SSH安全配置**
-   ```bash
-   # 编辑SSH配置
-   sudo nano /etc/ssh/sshd_config
-   
-   # 禁用root登录
-   PermitRootLogin no
-   
-   # 禁用密码认证
-   PasswordAuthentication no
-   
-   # 启用密钥认证
-   PubkeyAuthentication yes
-   
-   # 重启SSH服务
-   sudo systemctl restart sshd
-   ```
-
-2. **防火墙配置**
-   ```bash
-   # 运行防火墙脚本
-   sudo ./setup-firewall.sh
-   
-   # 查看防火墙状态
-   sudo ufw status
-   ```
-
-3. **系统更新**
-   ```bash
-   # 更新系统
-   sudo apt update && sudo apt upgrade -y
-   
-   # 设置自动更新
-   sudo apt install unattended-upgrades
-   sudo dpkg-reconfigure unattended-upgrades
-   ```
-
-### SSL/TLS配置
-
-1. **Let's Encrypt证书**
-   ```bash
-   # 安装Certbot
-   sudo apt install certbot python3-certbot-nginx
-   
-   # 获取证书
-   sudo certbot --nginx -d your-domain.com
-   
-   # 测试自动续期
-   sudo certbot renew --dry-run
-   ```
-
-2. **自签名证书（开发环境）**
-   ```bash
-   # 生成自签名证书
-   sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-     -keyout /etc/ssl/private/nginx-selfsigned.key \
-     -out /etc/ssl/certs/nginx-selfsigned.crt
-   ```
 
 ## 🚨 故障排除
 
-### 常见问题解决
+### 常见问题
 
 1. **端口被占用**
    ```bash
    # 查看端口占用
-   sudo netstat -tlnp | grep :6092
-   sudo netstat -tlnp | grep :6093
+   lsof -i :6090
+   lsof -i :6091
    
    # 杀死进程
-   sudo kill -9 <PID>
+   kill -9 <PID>
    ```
 
 2. **Docker容器启动失败**
@@ -458,114 +344,74 @@ ss -tlnp
    docker-compose up -d
    ```
 
-3. **配置文件错误**
+3. **Docker镜像拉取失败**
    ```bash
-   # 验证配置文件
-   ./test-config.sh
+   # 清理Docker缓存
+   docker system prune -a
    
+   # 手动拉取镜像
+   docker pull node:18-alpine
+   
+   # 使用备用镜像源
+   # 编辑Dockerfile，更换FROM指令
+   ```
+
+4. **配置文件错误**
+   ```bash
    # 从模板重新创建
    cp conf.yaml.example conf.yaml
+   cp conf.yaml.example frontend/public/conf.yaml
    ```
 
-4. **数据库问题**
+5. **依赖安装失败**
    ```bash
-   # 备份数据库
-   cp backend/data/sales_review.db backup.db
+   # 清理缓存
+   npm cache clean --force
    
-   # 重置数据库
-   rm backend/data/sales_review.db
+   # 使用国内镜像
+   npm config set registry https://registry.npmmirror.com
    ```
 
-5. **Nginx配置错误**
-   ```bash
-   # 测试配置
-   sudo nginx -t
-   
-   # 查看错误日志
-   sudo tail -f /var/log/nginx/error.log
-   ```
+### 日志查看
 
-### 性能优化
+```bash
+# 开发模式日志
+tail -f backend/logs/app.log
 
-1. **系统优化**
-   ```bash
-   # 增加文件描述符限制
-   echo "* soft nofile 65536" >> /etc/security/limits.conf
-   echo "* hard nofile 65536" >> /etc/security/limits.conf
-   
-   # 优化内核参数
-   echo "net.core.somaxconn = 65536" >> /etc/sysctl.conf
-   echo "net.ipv4.tcp_max_syn_backlog = 65536" >> /etc/sysctl.conf
-   sudo sysctl -p
-   ```
+# Docker日志
+docker-compose logs -f
 
-2. **Docker优化**
-   ```bash
-   # 配置Docker守护进程
-   sudo tee /etc/docker/daemon.json <<EOF
-   {
-     "log-driver": "json-file",
-     "log-opts": {
-       "max-size": "10m",
-       "max-file": "3"
-     }
-   }
-   EOF
-   
-   sudo systemctl restart docker
-   ```
-
-3. **Nginx优化**
-   ```bash
-   # 编辑Nginx配置
-   sudo nano /etc/nginx/nginx.conf
-   
-   # 增加worker进程数
-   worker_processes auto;
-   
-   # 优化连接数
-   events {
-     worker_connections 1024;
-   }
-   ```
+# Nginx日志
+sudo tail -f /var/log/nginx/access.log
+sudo tail -f /var/log/nginx/error.log
+```
 
 ## 📋 部署检查清单
 
-### 部署前检查
-- [ ] 服务器满足最低要求（2GB RAM, 10GB磁盘）
-- [ ] 网络连接正常
-- [ ] 域名解析正确（如果使用域名）
-- [ ] SSL证书准备就绪（如果需要HTTPS）
+### 开发模式
+- [ ] Node.js 18+ 已安装
+- [ ] 配置文件已创建并编辑
+- [ ] 依赖已安装
+- [ ] 服务正常启动
+- [ ] 端口未被占用
 
-### 部署后验证
-- [ ] 前端服务可访问
-- [ ] 后端API正常响应
-- [ ] 数据库连接正常
-- [ ] 文件上传功能正常
-- [ ] AI报告生成功能正常
-- [ ] 日志记录正常
-- [ ] 监控告警配置正确
+### Docker模式
+- [ ] Docker已安装
+- [ ] Docker Compose已安装
+- [ ] 镜像构建成功
+- [ ] 容器正常启动
+- [ ] 端口映射正确
 
-### 安全验证
+### 公网访问
+- [ ] Nginx已安装并配置
 - [ ] 防火墙规则正确
-- [ ] SSH安全配置完成
-- [ ] SSL证书有效
-- [ ] 定期备份配置
-- [ ] 监控系统运行
-
-## 📞 技术支持
-
-### 获取帮助
-- 查看日志文件定位问题
-- 运行诊断脚本收集信息
-- 检查配置文件语法
-- 验证网络连接状态
-
-### 联系支持
-- GitHub Issues: 提交问题报告
-- GitHub Discussions: 功能讨论
-- 文档更新: 查看最新部署指南
+- [ ] 域名解析正确
+- [ ] SSL证书有效（如需要）
 
 ---
 
-**提示**: 部署完成后，建议定期检查系统状态、更新安全补丁、备份重要数据。 
+**提示**: 
+- 开发模式适合本地开发和测试
+- Docker模式适合生产环境部署
+- 公网访问需要配置Nginx和防火墙
+- 如果Docker镜像拉取失败，请尝试使用备用镜像源 

@@ -1,5 +1,5 @@
-# 使用国内镜像源
-FROM registry.cn-hangzhou.aliyuncs.com/library/node:18-alpine
+# 使用官方镜像源（推荐）
+FROM node:18-alpine
 
 # 设置npm国内镜像
 RUN npm config set registry https://registry.npmmirror.com
@@ -21,6 +21,7 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 ENV NODE_ENV=production
 ENV DOCKER_ENV=true
+ENV TZ=Asia/Shanghai
 
 # 设置工作目录
 WORKDIR /app
