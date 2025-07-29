@@ -157,18 +157,18 @@ const History: React.FC = () => {
              const response = await fetch(`${config.getFrontend().backend_url}/reports/download/${format}/${report.id}`, {
         method: 'GET',
       });
-
+      
       if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
                  a.download = `${report.user_name}_第${calculatePeriodNumber(reports, report)}周复盘报告.${format}`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        message.success(`${format.toUpperCase()}文件下载成功`);
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      message.success(`${format.toUpperCase()}文件下载成功`);
       } else {
         message.error(`下载失败: ${response.statusText}`);
       }
@@ -538,34 +538,34 @@ const History: React.FC = () => {
               {(() => {
                 const lastWeekPlanData = parseJsonString(selectedReport.last_week_plan);
                 return lastWeekPlanData.length > 0 ? (
-                  <Table
+                <Table
                     dataSource={lastWeekPlanData}
-                    pagination={false}
-                    columns={[
-                      { title: '任务', dataIndex: 'task', key: 'task' },
-                      { title: '期望结果', dataIndex: 'expectedResult', key: 'expectedResult' },
-                      { title: '完成情况', dataIndex: 'completion', key: 'completion' },
-                    ]}
-                    size="small"
+                  pagination={false}
+                  columns={[
+                    { title: '任务', dataIndex: 'task', key: 'task' },
+                    { title: '期望结果', dataIndex: 'expectedResult', key: 'expectedResult' },
+                    { title: '完成情况', dataIndex: 'completion', key: 'completion' },
+                  ]}
+                  size="small"
                     scroll={{ x: 400 }}
-                  />
+                />
                 ) : (
                   <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
                     <div>暂无数据</div>
                   </div>
                 );
               })()}
-            </Card>
+              </Card>
 
             {/* 上周行动回顾 */}
             <Card title="上周行动回顾" style={{ marginBottom: 16 }} size="small">
               {(() => {
                 const lastWeekActionsData = parseJsonString(selectedReport.last_week_actions);
                 return lastWeekActionsData.length > 0 ? (
-                  <Table
+                <Table
                     dataSource={lastWeekActionsData}
-                    pagination={false}
-                    columns={[
+                  pagination={false}
+                  columns={[
                       { 
                         title: '日期', 
                         dataIndex: 'day', 
@@ -596,41 +596,41 @@ const History: React.FC = () => {
                         key: 'eveningResult',
                         render: (text: string) => text || '无'
                       },
-                    ]}
-                    size="small"
+                  ]}
+                  size="small"
                     scroll={{ x: 600 }}
-                  />
+                />
                 ) : (
                   <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
                     <div>暂无数据</div>
                   </div>
                 );
               })()}
-            </Card>
+              </Card>
 
             {/* 本周计划 */}
             <Card title="本周计划" style={{ marginBottom: 16 }} size="small">
               {(() => {
                 const weekPlanData = parseJsonString(selectedReport.week_plan);
                 return weekPlanData.length > 0 ? (
-                  <Table
+                <Table
                     dataSource={weekPlanData}
-                    pagination={false}
-                    columns={[
-                      { title: '任务', dataIndex: 'task', key: 'task' },
-                      { title: '期望结果', dataIndex: 'expectedResult', key: 'expectedResult' },
+                  pagination={false}
+                  columns={[
+                    { title: '任务', dataIndex: 'task', key: 'task' },
+                    { title: '期望结果', dataIndex: 'expectedResult', key: 'expectedResult' },
                       { title: '完成时间', dataIndex: 'deadline', key: 'deadline' },
-                    ]}
-                    size="small"
+                  ]}
+                  size="small"
                     scroll={{ x: 400 }}
-                  />
+                />
                 ) : (
                   <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
                     <div>暂无数据</div>
                   </div>
                 );
               })()}
-            </Card>
+              </Card>
 
             {/* 协调事项 */}
             {selectedReport.coordination_items && (
@@ -955,8 +955,8 @@ const History: React.FC = () => {
           .batch-buttons {
             flex-direction: column;
             align-items: stretch;
-          }
-          
+        }
+        
           .batch-button {
             margin-right: 0;
             margin-bottom: 8px;
@@ -980,8 +980,8 @@ const History: React.FC = () => {
           .detail-modal {
             width: 95vw !important;
             max-width: 95vw;
-          }
-          
+        }
+        
           .detail-content {
             max-height: 60vh;
           }

@@ -58,11 +58,11 @@ const MainLayout: React.FC = () => {
           </div>
           
           {/* 桌面端菜单 */}
-          <Menu
-            mode="horizontal"
-            selectedKeys={[selectedKey]}
+        <Menu
+          mode="horizontal"
+          selectedKeys={[selectedKey]}
             className="desktop-menu"
-            items={menuItems}
+          items={menuItems}
             onClick={handleMenuClick}
           />
           
@@ -72,7 +72,7 @@ const MainLayout: React.FC = () => {
             icon={<MenuOutlined />}
             className="mobile-menu-button"
             onClick={() => setMobileMenuVisible(true)}
-          />
+        />
         </div>
       </Header>
       

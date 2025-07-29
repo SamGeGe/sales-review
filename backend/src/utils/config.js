@@ -66,11 +66,11 @@ class Config {
   getDefaultConfig() {
     return {
       development: {
-        frontend: {
+      frontend: {
           port: 6090,
           backend_url: 'http://localhost:6091'
-        },
-        backend: {
+      },
+      backend: {
           port: 6091,
           cors_origins: [
             'http://localhost:6090',
@@ -115,20 +115,20 @@ class Config {
 
   getLLM() {
     return this.config?.llm || {
-      primary: {
-        base_url: 'http://183.221.24.83:8000/v1',
-        model: 'qwq32b-q8',
-        api_key: 'sk-fake',
-        timeout: 120000,
-        max_retries: 3
-      },
-      backup: {
-        base_url: 'https://openrouter.ai/api/v1',
-        model: 'qwen/qwen3-235b-a22b-2507',
-        api_key: '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',
-        timeout: 120000,
-        max_retries: 3
-      }
+        primary: {
+          base_url: 'http://183.221.24.83:8000/v1',
+          model: 'qwq32b-q8',
+          api_key: 'sk-fake',
+          timeout: 120000,
+          max_retries: 3
+        },
+        backup: {
+          base_url: 'https://openrouter.ai/api/v1',
+          model: 'qwen/qwen3-235b-a22b-2507',
+          api_key: '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',
+          timeout: 120000,
+          max_retries: 3
+        }
     };
   }
 

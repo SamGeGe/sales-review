@@ -42,13 +42,13 @@
 ### 本地开发
 
 1. **克隆项目**
-   ```bash
+```bash
    git clone https://github.com/your-username/sales-review.git
-   cd sales-review
-   ```
+cd sales-review
+```
 
 2. **运行设置脚本**
-   ```bash
+```bash
    chmod +x setup-after-clone.sh
    ./setup-after-clone.sh
    ```
@@ -61,9 +61,9 @@
    ```
 
 4. **启动开发环境**
-   ```bash
+```bash
    ./start-local.sh
-   ```
+```
 
 5. **访问应用**
    - 前端: http://localhost:6090
@@ -72,9 +72,9 @@
 ### Docker部署
 
 1. **构建并启动容器**
-   ```bash
-   docker-compose up -d
-   ```
+```bash
+docker-compose up -d
+```
 
 2. **访问应用**
    - 前端: http://localhost:6092
@@ -234,13 +234,13 @@ sqlite3 backend/data/sales_review.db ".tables"
    ```
 
 4. **配置文件错误**
-   ```bash
+```bash
    # 验证配置文件
    ./test-config.sh
-   
+
    # 从模板重新创建
    cp conf.yaml.example conf.yaml
-   ```
+```
 
 ### 日志查看
 

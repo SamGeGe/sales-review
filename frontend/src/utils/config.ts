@@ -113,7 +113,7 @@ class ConfigManager {
 
   private getCurrentConfig(): CurrentConfig {
     if (!this.config) return this.getDefaultConfig().development;
-    
+
     if (this.isDockerEnvironment) {
       return this.config.production || this.getDefaultConfig().production;
     } else {
@@ -124,7 +124,7 @@ class ConfigManager {
   private getDefaultConfig(): Config {
     return {
       development: {
-        frontend: {
+      frontend: {
           port: 6090,
           backend_url: 'http://localhost:6091'
         },
@@ -140,16 +140,16 @@ class ConfigManager {
         frontend: {
           port: 6092,
           backend_url: '/api'
-        },
-        backend: {
+      },
+      backend: {
           port: 6093,
-          cors_origins: [
+        cors_origins: [
             'http://localhost:6092',
             'http://localhost:6093',
-            'http://*',
+          'http://*',
             'https://*',
             '*'
-          ]
+        ]
         }
       },
       llm: {

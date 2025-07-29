@@ -31,7 +31,7 @@ class DocumentGenerator {
             console.warn('markdown-pdf生成失败，使用方案4:', error.message);
             
             // 方案4：生成HTML文件供用户下载
-            return await this.generateHTMLFile(content, options);
+          return await this.generateHTMLFile(content, options);
           }
         }
       }
@@ -136,15 +136,15 @@ class DocumentGenerator {
       
       // 使用markdown-pdf命令，不使用外部CSS
       await execAsync(`npx markdown-pdf --css-style "body{font-family:'Microsoft YaHei','SimSun',Arial,sans-serif;font-size:12pt;line-height:1.6;color:#333;margin:2cm;} h1,h2,h3{color:#1890ff;page-break-after:avoid;} table{border-collapse:collapse;width:100%;margin:15px 0;font-size:10pt;page-break-inside:avoid;} th,td{border:1px solid #ddd;padding:6px;text-align:left;vertical-align:top;} th{background-color:#f5f5f5;font-weight:bold;color:#333;} tr:nth-child(even){background-color:#f9f9f9;}" ${tempMarkdownFile} -o ${tempPdfFile}`);
-      
-      const pdfBuffer = await fs.readFile(tempPdfFile);
-      
-      // 清理临时文件
-      await fs.unlink(tempMarkdownFile).catch(() => {});
-      await fs.unlink(tempPdfFile).catch(() => {});
-      
-      return pdfBuffer;
-    } catch (error) {
+        
+        const pdfBuffer = await fs.readFile(tempPdfFile);
+        
+        // 清理临时文件
+        await fs.unlink(tempMarkdownFile).catch(() => {});
+        await fs.unlink(tempPdfFile).catch(() => {});
+        
+        return pdfBuffer;
+      } catch (error) {
       // 清理临时文件
       await fs.unlink(tempMarkdownFile).catch(() => {});
       await fs.unlink(tempPdfFile).catch(() => {});
@@ -154,13 +154,13 @@ class DocumentGenerator {
 
   // 使用HTML转PDF生成PDF
   async generatePDFWithHtmlToPdf(content, options) {
-    const html = this.convertMarkdownToHTML(content);
-    const tempHtmlFile = path.join(this.tempDir, `temp_${Date.now()}.html`);
+          const html = this.convertMarkdownToHTML(content);
+          const tempHtmlFile = path.join(this.tempDir, `temp_${Date.now()}.html`);
     const tempPdfFile = path.join(this.tempDir, `temp_${Date.now()}.pdf`);
     
     try {
-      await fs.writeFile(tempHtmlFile, html, 'utf-8');
-      
+          await fs.writeFile(tempHtmlFile, html, 'utf-8');
+          
       // 尝试使用wkhtmltopdf（如果可用）
       try {
         await execAsync(`wkhtmltopdf --page-size A4 --margin-top 20 --margin-bottom 20 --margin-left 20 --margin-right 20 --encoding utf-8 --no-outline --quiet ${tempHtmlFile} ${tempPdfFile}`);
@@ -177,14 +177,14 @@ class DocumentGenerator {
           }
         }
       }
-      
-      const pdfBuffer = await fs.readFile(tempPdfFile);
-      
-      // 清理临时文件
-      await fs.unlink(tempHtmlFile).catch(() => {});
-      await fs.unlink(tempPdfFile).catch(() => {});
-      
-      return pdfBuffer;
+          
+          const pdfBuffer = await fs.readFile(tempPdfFile);
+          
+          // 清理临时文件
+          await fs.unlink(tempHtmlFile).catch(() => {});
+          await fs.unlink(tempPdfFile).catch(() => {});
+          
+          return pdfBuffer;
     } catch (error) {
       // 清理临时文件
       await fs.unlink(tempHtmlFile).catch(() => {});

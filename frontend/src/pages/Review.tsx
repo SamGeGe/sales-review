@@ -115,43 +115,43 @@ const Review: React.FC = () => {
     const filledActions = [
       {
         day: '周一',
-        morningAction: '会见领导，推进回款事宜',
+        morningAction: '会见领导，推进项目回款事宜',
         morningResult: '领导有意愿帮忙',
         eveningAction: '接待领导',
         eveningResult: '满意'
       },
       {
         day: '周二',
-        morningAction: '飞往海口，会见投资方',
+        morningAction: '出差外地，会见投资方',
         morningResult: '没见到',
         eveningAction: '无',
         eveningResult: '无'
       },
       {
         day: '周三',
-        morningAction: '拜访龙桥镇书记，沟通回款事宜 拜访中铁建海南建发集团董事长',
-        morningResult: '不卡我们 董事长满意',
-        eveningAction: '接待董事长',
-        eveningResult: '董事长满意'
+        morningAction: '拜访客户，沟通项目推进事宜',
+        morningResult: '客户满意',
+        eveningAction: '接待客户',
+        eveningResult: '客户满意'
       },
       {
         day: '周四',
-        morningAction: '会见火龙洞投资方马总',
-        morningResult: '初步确定落地实施步骤',
-        eveningAction: '接待马总',
-        eveningResult: '马总很满意'
+        morningAction: '会见投资方，讨论项目合作',
+        morningResult: '初步确定合作方案',
+        eveningAction: '接待投资方',
+        eveningResult: '投资方很满意'
       },
       {
         day: '周五',
-        morningAction: '参加海南省全域土地综合整治推介会 签约',
+        morningAction: '参加项目推介会并签约',
         morningResult: '全部完成',
-        eveningAction: '接待张政委、刘主任、夏书记一行',
+        eveningAction: '接待重要客户',
         eveningResult: '大家都很开心'
       },
       {
         day: '周六',
-        morningAction: '回成都',
-        morningResult: '回成都',
+        morningAction: '返回公司',
+        morningResult: '返回公司',
         eveningAction: '无',
         eveningResult: '无'
       },
@@ -174,19 +174,19 @@ const Review: React.FC = () => {
         expectedResult: '收款工作落实到人头，每一天都要跟进 复盘方式按照新的方式来'
       },
       {
-        task: '出差沧源，对接补充协议，同时与天祥公司确定今年要推进的地块，做好资金准备',
-        expectedResult: '与自然资源局、天祥公司达成今年推进地块的具体实施方案和时间节点'
+        task: '出差外地，对接补充协议，同时与客户确定今年要推进的项目，做好资金准备',
+        expectedResult: '与相关部门、客户达成今年推进项目的具体实施方案和时间节点'
       },
       {
-        task: '回成都，邀请自投集团旗下数科公司到公司参观，推荐我们公司的实景三维和人工智能产品',
-        expectedResult: '与数科公司达成项目合作，未来他们跑动可以带着我们一起'
+        task: '回公司，邀请合作伙伴到公司参观，推荐我们公司的产品和服务',
+        expectedResult: '与合作伙伴达成项目合作，未来他们跑动可以带着我们一起'
       }
     ];
     setWeekPlanRows(filledWeekPlan);
     
     // 设置其他事项
     setOtherItems('本周工作重点：推进回款工作，加强与各投资方的沟通合作。');
-    setCoordinationItems('需要领导协调：1. 太康回款事宜的最终决策；2. 火龙洞项目的投资审批流程。');
+    setCoordinationItems('需要领导协调：1. 项目回款事宜的最终决策；2. 重要项目的投资审批流程。');
     
     // 清除错误信息
     setErrorMessage('');
@@ -357,16 +357,16 @@ const Review: React.FC = () => {
                   ? matchingReview.week_plan 
                   : JSON.parse(matchingReview.week_plan);
                 
-                console.log('解析的周计划数据:', weekPlanData);
-                
-                // 自动填充上周复盘计划，将历史数据作为任务和期望结果，但完成情况留空
-                const newLastWeekPlan = weekPlanData.map((item: any) => ({
-                  task: item.task || '',
-                  expectedResult: item.expectedResult || '',
-                  completion: '' // 完成情况留空，让用户输入
-                }));
-                setLastWeekPlan(newLastWeekPlan);
-                console.log('✅ 自动填充上周复盘计划数据:', newLastWeekPlan);
+              console.log('解析的周计划数据:', weekPlanData);
+              
+              // 自动填充上周复盘计划，将历史数据作为任务和期望结果，但完成情况留空
+              const newLastWeekPlan = weekPlanData.map((item: any) => ({
+                task: item.task || '',
+                expectedResult: item.expectedResult || '',
+                completion: '' // 完成情况留空，让用户输入
+              }));
+              setLastWeekPlan(newLastWeekPlan);
+              console.log('✅ 自动填充上周复盘计划数据:', newLastWeekPlan);
               }
               
               // 填充上周行动复盘 (lastWeekActions)
@@ -563,28 +563,48 @@ ${weekPlanRows.filter(row => row.task.trim() || row.expectedResult.trim()).map((
   `| **${index + 1}** | ${(item.task || '无').replace(/\n/g, ' ')} | ${(item.expectedResult || '无').replace(/\n/g, ' ')} | 本周内 | 内部资源协调 | 中等风险，需持续跟进 |`
 ).join('\n')}`,
 
-      // 政府客户拜访计划表格
-      clientVisitTable: `
+      // 政府客户拜访计划表格 - 基于用户输入生成
+      clientVisitTable: weekPlanRows.filter(row => row.task.trim() || row.expectedResult.trim()).length > 0 ? `
 | 目标客户 | 拜访目的 | 拜访策略 | 预期成果 |
 |----------|----------|----------|----------|
-| **成都市自然资源局** | 推进沧源地块项目 | 提交推进计划书，安排技术与资金测算会议 | 获得明确支持意向，确认合作细节 |
-| **自投集团数科公司** | 推广人工智能与实景三维技术 | 展示产品优势，结合已有项目进行案例讲解 | 达成合作意向，建立联合推广机制 |
-| **海口市美朗村方** | 推进回款事宜，寻求合作机会 | 约定再次拜访，深入探讨合作方式 | 推动回款流程，争取获得明确推进承诺 |`,
+${weekPlanRows.filter(row => row.task.trim() || row.expectedResult.trim()).map((item, index) => {
+  // 从任务内容中提取客户信息
+  const task = item.task || '';
+  const expectedResult = item.expectedResult || '';
+  
+  // 简单的客户提取逻辑（可以根据需要优化）
+  let targetClient = '待确定客户';
+  let visitPurpose = task || '推进项目合作';
+  let visitStrategy = '根据具体情况制定拜访策略';
+  let expectedOutcome = expectedResult || '达成合作意向';
+  
+  // 如果任务中包含具体的客户信息，尝试提取
+  if (task.includes('客户') || task.includes('拜访') || task.includes('对接')) {
+    visitPurpose = task;
+  }
+  
+  return `| **${targetClient}** | ${visitPurpose} | ${visitStrategy} | ${expectedOutcome} |`;
+}).join('\n')}` : `
+| 目标客户 | 拜访目的 | 拜访策略 | 预期成果 |
+|----------|----------|----------|----------|
+| - | 无 | 无 | 无 |`,
 
-      // 领导支持事项表格
-      leadershipSupportTable: `
+      // 领导支持事项表格 - 基于用户输入生成
+      leadershipSupportTable: coordinationItems.trim() ? `
 | 事项 | 具体需求 | 紧急程度 | 预期支持方式 | 时间要求 |
 |------|----------|----------|--------------|----------|
-| **太康回款事宜** | 领导层最终决策支持 | 高 | 参与高层会谈，推动审批流程 | 2025年8月10日前 |
-| **火龙洞项目审批流程** | 明确审批节点、流程与时间节点安排 | 高 | 协调政府相关部门，加快流程审批 | 2025年8月5日前 |`,
+| **需协调事项** | ${coordinationItems.replace(/\n/g, ' ')} | 根据具体情况确定 | 领导支持与协调 | 根据项目进度确定 |` : `
+| 事项 | 具体需求 | 紧急程度 | 预期支持方式 | 时间要求 |
+|------|----------|----------|--------------|----------|
+| - | 无 | 无 | 无 | 无 |`,
 
-      // 风险预警表格
+      // 风险预警表格 - 基于用户输入生成
       riskWarningTable: `
 | 风险类型 | 风险描述 | 影响程度 | 发生概率 | 应对措施 |
 |----------|----------|----------|----------|----------|
-| **政策变动风险** | 政府政策变动可能导致项目推进受阻 | 高 | 中 | 密切关注政策动态，及时调整项目计划与思路 |
-| **客户决策延迟** | 多个项目需高层决策，存在延迟风险 | 高 | 高 | 提前准备好材料与数据，多次沟通汇报，争取高层关注与支持 |
-| **资金不到位风险** | 项目落地依赖资金配套，可能存在资金不能及时到位的问题 | 中 | 中 | 提前做好资金测算，与客户明确资金安排，建立推进与付款挂钩机制 |`
+| **项目推进风险** | 基于用户输入的具体项目情况，可能存在推进风险 | 中 | 中 | 密切关注项目进展，及时调整策略 |
+| **客户关系风险** | 客户关系维护可能存在不确定性 | 中 | 中 | 加强客户沟通，建立长期合作关系 |
+| **资源协调风险** | 内部资源协调可能存在困难 | 低 | 中 | 提前做好资源规划，建立协调机制 |`
     };
 
     return tables;
@@ -908,7 +928,7 @@ ${weekPlanRows.filter(row => row.task.trim() || row.expectedResult.trim()).map((
       console.log('保存报告用于下载:', saveData);
 
       const saveResponse = await apiService.saveReviewReport(saveData);
-      
+
       if (!saveResponse.success) {
         throw new Error(`保存报告失败: ${saveResponse.error}`);
       }
@@ -955,49 +975,49 @@ ${weekPlanRows.filter(row => row.task.trim() || row.expectedResult.trim()).map((
           <div className="basic-info">
             <Row gutter={[16, 16]}>
               <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                <Form.Item 
-                  label={<><RequiredMark />复盘时间区间</>}
-                  validateStatus={validateStatus.dateRange}
-                  help={helpText.dateRange}
-                >
-                  <RangePicker
+            <Form.Item 
+              label={<><RequiredMark />复盘时间区间</>}
+              validateStatus={validateStatus.dateRange}
+              help={helpText.dateRange}
+            >
+          <RangePicker
                     style={{ width: '100%' }}
-                    value={dateRange}
-                    onChange={handleDateRangeChange}
-                    placeholder={['开始日期', '结束日期']}
-                    cellRender={dateCellRender}
-                  />
-                </Form.Item>
+            value={dateRange}
+                onChange={handleDateRangeChange}
+                placeholder={['开始日期', '结束日期']}
+                cellRender={dateCellRender}
+          />
+        </Form.Item>
               </Col>
-              
+
               <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                <Form.Item 
-                  label={<><RequiredMark />被复盘人</>}
-                  validateStatus={validateStatus.selectedUser}
-                  help={helpText.selectedUser}
-                >
-                  <Select
-                    placeholder="请选择被复盘人"
-                    value={selectedUser}
-                    onChange={handleUserChange}
-                    options={userOptions}
-                  />
-                </Form.Item>
+            <Form.Item 
+              label={<><RequiredMark />被复盘人</>}
+              validateStatus={validateStatus.selectedUser}
+              help={helpText.selectedUser}
+            >
+          <Select
+            placeholder="请选择被复盘人"
+            value={selectedUser}
+                onChange={handleUserChange}
+                options={userOptions}
+              />
+            </Form.Item>
               </Col>
-              
+
               <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                <Form.Item 
-                  label={<><RequiredMark />复盘方式</>}
-                  validateStatus={validateStatus.reviewMethod}
-                  help={helpText.reviewMethod}
-                >
-                  <Select
-                    placeholder="请选择复盘方式"
-                    value={reviewMethod}
-                    onChange={setReviewMethod}
-                    options={reviewMethodOptions}
-                  />
-                </Form.Item>
+            <Form.Item 
+              label={<><RequiredMark />复盘方式</>}
+              validateStatus={validateStatus.reviewMethod}
+              help={helpText.reviewMethod}
+            >
+              <Select
+                placeholder="请选择复盘方式"
+                value={reviewMethod}
+                onChange={setReviewMethod}
+                options={reviewMethodOptions}
+              />
+            </Form.Item>
               </Col>
             </Row>
           </div>
