@@ -47,6 +47,23 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: beijingTime.toISOString() });
 });
 
+// 配置文件API端点
+app.get('/api/config', (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const configPath = path.join(__dirname, '..', '..', 'conf.yaml');
+    const configContent = fs.readFileSync(configPath, 'utf8');
+    
+    res.setHeader('Content-Type', 'text/yaml');
+    res.send(configContent);
+    Logger.info('配置文件请求', { path: req.path });
+  } catch (error) {
+    Logger.error('配置文件读取失败', error);
+    res.status(500).json({ error: '配置文件读取失败' });
+  }
+});
+
 // 错误处理中间件
 app.use((err, req, res, next) => {
   Logger.error('服务器内部错误', err);

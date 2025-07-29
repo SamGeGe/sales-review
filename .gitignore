@@ -202,7 +202,6 @@ dist/
 # ===== 特定于项目的忽略 =====
 # 真实配置文件（包含敏感信息）
 conf.yaml
-frontend/public/conf.yaml
 
 # 配置文件备份
 conf.yaml.backup

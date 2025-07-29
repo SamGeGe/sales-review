@@ -86,7 +86,8 @@ class ConfigManager {
 
   private async loadConfig() {
     try {
-      const response = await fetch('/conf.yaml');
+      // 修改为读取根目录的配置文件
+      const response = await fetch('/api/config');
       const configText = await response.text();
       this.config = yaml.load(configText) as Config;
       console.log('✅ 前端配置文件加载成功');
