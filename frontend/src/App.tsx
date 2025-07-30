@@ -39,8 +39,21 @@ const MainLayout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
-  const selectedKey = menuItems.find(item => item.path === location.pathname) ?
-    menuItems.find(item => item.path === location.pathname)!.key : 'dashboard';
+  // 根据当前路径确定选中的菜单项
+  const getSelectedKey = () => {
+    const pathname = location.pathname;
+    
+    // 如果是历史复盘相关的路径，选中"历史复盘报告"
+    if (pathname.startsWith('/history')) {
+      return 'history';
+    }
+    
+    // 精确匹配其他路径
+    const matchedItem = menuItems.find(item => item.path === pathname);
+    return matchedItem ? matchedItem.key : 'dashboard';
+  };
+  
+  const selectedKey = getSelectedKey();
 
   const handleMenuClick = ({ key }: { key: string }) => {
     const item = menuItems.find(i => i.key === key);
