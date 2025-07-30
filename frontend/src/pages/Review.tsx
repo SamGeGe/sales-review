@@ -854,10 +854,18 @@ ${weekPlanRows.filter(row => row.task.trim() || row.expectedResult.trim()).map((
         // 错误回调
         (error: string) => {
           console.error('❌ 报告生成错误:', error);
-          setErrorMessage(`报告生成失败: ${error}`);
-          setGenerationStatus('生成失败');
-          setGenerationProgress(0);
-          message.error(`报告生成失败: ${error}`);
+          // 如果已经有内容生成，不显示错误提示
+          if (accumulatedContent.length > 0) {
+            console.log('⚠️ 检测到流中断，但内容已生成，不显示错误');
+            setGenerationStatus('报告生成完成（流中断）');
+            setGenerationProgress(100);
+            message.success('AI报告生成成功！');
+          } else {
+            setErrorMessage(`报告生成失败: ${error}`);
+            setGenerationStatus('生成失败');
+            setGenerationProgress(0);
+            message.error(`报告生成失败: ${error}`);
+          }
         }
       );
     } catch (error: any) {

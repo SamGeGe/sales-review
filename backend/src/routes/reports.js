@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const LLMService = require('../services/llmService');
 const ReportExportService = require('../services/reportExportService');
-const DatabaseService = require('../services/databaseService');
+const databaseService = require('../services/databaseService');
 const Logger = require('../utils/logger');
 const fs = require('fs').promises;
 const path = require('path');
@@ -184,13 +184,32 @@ router.post('/generate', async (req, res) => {
 router.get('/download/word/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const reportPath = path.join(__dirname, '..', '..', 'reports', `${id}.txt`);
     
-    const reportContent = await fs.readFile(reportPath, 'utf-8');
+    // 获取报告信息以生成正确的文件名
+    const report = await databaseService.getReviewReportById(id);
+    if (!report) {
+      return res.status(404).json({ error: '报告不存在' });
+    }
+    
+    // 生成文件名：第{周数}周_{期间}_{被复盘人}_复盘报告.docx
+    const formatDateRange = (startDate, endDate) => {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const startStr = `${start.getMonth() + 1}-${start.getDate()}`;
+      const endStr = `${end.getMonth() + 1}-${end.getDate()}`;
+      return `${startStr}至${endStr}`;
+    };
+    
+    const dateRange = formatDateRange(report.date_range_start, report.date_range_end);
+    const fileName = `第${report.week_number}周_${dateRange}_${report.user_name}_复盘报告.docx`;
+    
+    // 直接从数据库读取报告内容，而不是从文件
+    const reportContent = report.ai_report || '';
+    Logger.info(`Word下载 - 报告ID: ${id}, 内容长度: ${reportContent.length}, 内容预览: ${reportContent.substring(0, 100)}`);
     const wordBuffer = await ReportExportService.generateWordReport(reportContent);
     
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-    res.setHeader('Content-Disposition', `attachment; filename="sales-review-${id}.docx"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
     res.send(wordBuffer);
     
     Logger.success(`Word报告下载成功: ${id}`);
@@ -204,18 +223,36 @@ router.get('/download/word/:id', async (req, res) => {
 router.get('/download/pdf/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const reportPath = path.join(__dirname, '..', '..', 'reports', `${id}.txt`);
+    
+    // 获取报告信息以生成正确的文件名
+    const report = await databaseService.getReviewReportById(id);
+    if (!report) {
+      return res.status(404).json({ error: '报告不存在' });
+    }
+    
+    // 生成文件名：第{周数}周_{期间}_{被复盘人}_复盘报告.pdf
+    const formatDateRange = (startDate, endDate) => {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const startStr = `${start.getMonth() + 1}-${start.getDate()}`;
+      const endStr = `${end.getMonth() + 1}-${end.getDate()}`;
+      return `${startStr}至${endStr}`;
+    };
+    
+    const dateRange = formatDateRange(report.date_range_start, report.date_range_end);
+    const fileName = `第${report.week_number}周_${dateRange}_${report.user_name}_复盘报告.pdf`;
     
     Logger.info(`开始下载PDF报告: ${id}`);
     
-    const reportContent = await fs.readFile(reportPath, 'utf-8');
-    Logger.info(`报告内容读取成功，长度: ${reportContent.length}`);
+    // 直接从数据库读取报告内容，而不是从文件
+    const reportContent = report.ai_report || '';
+    Logger.info(`PDF下载 - 报告ID: ${id}, 内容长度: ${reportContent.length}, 内容预览: ${reportContent.substring(0, 100)}`);
     
     const pdfBuffer = await ReportExportService.generatePdfReport(reportContent);
     Logger.info(`PDF生成成功，大小: ${pdfBuffer.length} 字节`);
     
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="sales-review-${id}.pdf"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
     res.send(pdfBuffer);
     
     Logger.success(`PDF报告下载成功: ${id}`);
@@ -282,7 +319,7 @@ router.post('/save', async (req, res) => {
     await ensureDirectories();
     
     // 保存到数据库
-    const result = await DatabaseService.saveReviewReport(reviewData);
+    const result = await databaseService.saveReviewReport(reviewData);
     
     // 同时保存到文件，用于下载功能
     if (result && result.id && reviewData.aiReport) {
@@ -311,7 +348,7 @@ router.get('/history', async (req, res) => {
   try {
     Logger.apiRequest('GET', '/api/reports/history', req.query);
     
-    const reports = await DatabaseService.getAllReviewReports();
+    const reports = await databaseService.getAllReviewReports();
     
     Logger.apiResponse(200, { count: reports.length });
     res.json({
@@ -334,7 +371,7 @@ router.get('/detail/:id', async (req, res) => {
     Logger.apiRequest('GET', `/api/reports/detail/${req.params.id}`);
     
     const { id } = req.params;
-    const report = await DatabaseService.getReviewReportById(parseInt(id));
+    const report = await databaseService.getReviewReportById(parseInt(id));
     
     if (!report) {
       return res.status(404).json({
@@ -364,7 +401,7 @@ router.delete('/delete/:id', async (req, res) => {
     Logger.apiRequest('DELETE', `/api/reports/delete/${req.params.id}`);
     
     const { id } = req.params;
-    await DatabaseService.deleteReviewReport(parseInt(id));
+    await databaseService.deleteReviewReport(parseInt(id));
     
     Logger.apiResponse(200, { id: parseInt(id) });
     res.json({
@@ -387,7 +424,7 @@ router.put('/lock/:id', async (req, res) => {
     Logger.apiRequest('PUT', `/api/reports/lock/${req.params.id}`);
     
     const { id } = req.params;
-    await DatabaseService.lockReviewReport(parseInt(id));
+    await databaseService.lockReviewReport(parseInt(id));
     
     Logger.apiResponse(200, { id: parseInt(id) });
     res.json({

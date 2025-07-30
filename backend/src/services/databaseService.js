@@ -41,6 +41,22 @@ class DatabaseService {
       )
     `;
 
+    const createWeeksTable = `
+      CREATE TABLE IF NOT EXISTS weeks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        week_number INTEGER NOT NULL,
+        year INTEGER NOT NULL,
+        date_range_start TEXT NOT NULL,
+        date_range_end TEXT NOT NULL,
+        report_count INTEGER DEFAULT 0,
+        locked_count INTEGER DEFAULT 0,
+        unlocked_count INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(week_number, year)
+      )
+    `;
+
     const createReviewReportsTable = `
       CREATE TABLE IF NOT EXISTS review_reports (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -56,8 +72,11 @@ class DatabaseService {
         other_items TEXT,
         ai_report TEXT,
         is_locked BOOLEAN DEFAULT 0,
+        week_id INTEGER,
+        week_number INTEGER,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users (id)
+        FOREIGN KEY (user_id) REFERENCES users (id),
+        FOREIGN KEY (week_id) REFERENCES weeks (id)
       )
     `;
 
@@ -90,12 +109,29 @@ class DatabaseService {
         }
       });
 
+      this.db.run(createWeeksTable, (err) => {
+        if (err) {
+          Logger.error('创建周数表失败:', err);
+        } else {
+          Logger.info('周数表创建成功');
+        }
+      });
+
       this.db.run(createReviewReportsTable, (err) => {
         if (err) {
           Logger.error('创建复盘报告表失败:', err);
         } else {
           Logger.info('复盘报告表创建成功');
           this.insertMockReviewReports();
+          
+          // 延迟执行数据迁移，确保表结构完全创建
+          setTimeout(async () => {
+            try {
+              await this.migrateExistingReports();
+            } catch (error) {
+              Logger.error('数据迁移失败:', error);
+            }
+          }, 1000);
         }
       });
     });
@@ -288,49 +324,92 @@ class DatabaseService {
   }
 
   async saveReviewReport(reportData) {
-    return new Promise((resolve, reject) => {
-      const {
-        dateRange,
-        selectedUser,
-        selectedUserName,
-        reviewMethod,
-        lastWeekPlan,
-        lastWeekActions,
-        weekPlan,
-        coordinationItems,
-        otherItems,
-        aiReport
-      } = reportData;
-
-      const [startDate, endDate] = dateRange;
-
-      this.db.run(
-        `INSERT INTO review_reports 
-         (user_id, user_name, date_range_start, date_range_end, review_method, 
-          last_week_plan, last_week_actions, week_plan, coordination_items, other_items, ai_report)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
+    return new Promise(async (resolve, reject) => {
+      try {
+        const {
+          dateRange,
           selectedUser,
           selectedUserName,
-          startDate,
-          endDate,
           reviewMethod,
-          JSON.stringify(lastWeekPlan),
-          JSON.stringify(lastWeekActions),
-          JSON.stringify(weekPlan),
+          lastWeekPlan,
+          lastWeekActions,
+          weekPlan,
           coordinationItems,
           otherItems,
           aiReport
-        ],
-        function(err) {
-          if (err) {
-            Logger.error('保存复盘报告失败:', err);
-            reject(err);
-          } else {
-            resolve({ id: this.lastID, ...reportData });
-          }
-        }
-      );
+        } = reportData;
+
+        const [startDate, endDate] = dateRange;
+
+        // 计算周数并创建周数记录
+        const weekNumber = this.calculateWeekNumber(endDate);
+        const year = require('dayjs')(endDate).year();
+        const { weekId } = await this.createOrUpdateWeek(weekNumber, year, endDate);
+
+        this.db.run(
+          `INSERT INTO review_reports 
+           (user_id, user_name, date_range_start, date_range_end, review_method, 
+            last_week_plan, last_week_actions, week_plan, coordination_items, other_items, ai_report,
+            week_id, week_number)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            selectedUser,
+            selectedUserName,
+            startDate,
+            endDate,
+            reviewMethod,
+            JSON.stringify(lastWeekPlan),
+            JSON.stringify(lastWeekActions),
+            JSON.stringify(weekPlan),
+            coordinationItems,
+            otherItems,
+            aiReport,
+            weekId,
+            weekNumber
+          ],
+          async function(err) {
+            if (err) {
+              Logger.error('保存复盘报告失败:', err);
+              reject(err);
+            } else {
+              const reportId = this.lastID;
+              
+              // 保存报告内容到文件
+              try {
+                const fs = require('fs').promises;
+                const path = require('path');
+                const reportsDir = path.join(__dirname, '..', '..', 'reports');
+                
+                // 确保reports目录存在
+                await fs.mkdir(reportsDir, { recursive: true });
+                
+                // 保存报告内容到文件
+                const reportPath = path.join(reportsDir, `${reportId}.txt`);
+                await fs.writeFile(reportPath, aiReport, 'utf-8');
+                
+                Logger.info(`报告文件保存成功: ${reportPath}`);
+              } catch (fileError) {
+                Logger.error('保存报告文件失败:', fileError);
+                // 不阻止数据库保存成功，但记录错误
+              }
+              
+              // 更新周数统计
+              await this.updateWeekStatistics(weekId);
+              
+              resolve({ 
+                id: reportId, 
+                weekId, 
+                weekNumber, 
+                year,
+                ...reportData 
+              });
+            }
+          }.bind(this)
+        );
+      } catch (error) {
+        Logger.error('保存复盘报告过程中出错:', error);
+        reject(error);
+      }
     });
   }
 
@@ -419,6 +498,8 @@ class DatabaseService {
           r.other_items,
           r.ai_report,
           r.is_locked,
+          r.week_id,
+          r.week_number,
           r.created_at,
           u.name as user_display_name
         FROM review_reports r
@@ -479,6 +560,225 @@ class DatabaseService {
           reject(err);
         } else {
           resolve({ id, is_locked: false });
+        }
+      });
+    });
+  }
+
+  // 周数计算工具方法
+  calculateWeekNumber(endDate) {
+    const dayjs = require('dayjs');
+    const reportEndDate = dayjs(endDate);
+    
+    // 找到该日期所在周的周一
+    const monday = reportEndDate.startOf('week').add(1, 'day'); // dayjs默认周日为每周第一天，所以+1天得到周一
+    
+    // 计算从2025年第一个周一到当前周一的周数
+    const firstMonday2025 = dayjs('2025-01-06'); // 2025年第一个周一
+    const weekNumber = monday.diff(firstMonday2025, 'week') + 1;
+    
+    return weekNumber;
+  }
+
+  // 获取周的时间范围
+  getWeekDateRange(weekNumber) {
+    const dayjs = require('dayjs');
+    const firstMonday2025 = dayjs('2025-01-06'); // 2025年第一个周一
+    const weekStart = firstMonday2025.add((weekNumber - 1) * 7, 'day');
+    const weekEnd = weekStart.add(6, 'day'); // 周一+6天=周日
+    
+    return {
+      start: weekStart.format('YYYY-MM-DD'),
+      end: weekEnd.format('YYYY-MM-DD')
+    };
+  }
+
+  // 创建或更新周数记录
+  async createOrUpdateWeek(weekNumber, year, endDate) {
+    return new Promise((resolve, reject) => {
+      const dateRange = this.getWeekDateRange(weekNumber);
+      
+      this.db.run(`
+        INSERT OR REPLACE INTO weeks 
+        (week_number, year, date_range_start, date_range_end, updated_at)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      `, [weekNumber, year, dateRange.start, dateRange.end], function(err) {
+        if (err) {
+          Logger.error('创建或更新周数记录失败:', err);
+          reject(err);
+        } else {
+          resolve({ weekId: this.lastID, weekNumber, year });
+        }
+      });
+    });
+  }
+
+  // 获取周数列表
+  async getAllWeeks() {
+    return new Promise((resolve, reject) => {
+      this.db.all(`
+        SELECT 
+          w.id,
+          w.week_number,
+          w.year,
+          w.date_range_start,
+          w.date_range_end,
+          w.report_count,
+          w.locked_count,
+          w.unlocked_count,
+          w.created_at,
+          w.updated_at
+        FROM weeks w
+        ORDER BY w.year DESC, w.week_number DESC
+      `, (err, rows) => {
+        if (err) {
+          Logger.error('获取周数列表失败:', err);
+          reject(err);
+        } else {
+          resolve(rows || []);
+        }
+      });
+    });
+  }
+
+  // 获取指定周的报告
+  async getReportsByWeek(weekId) {
+    return new Promise((resolve, reject) => {
+      this.db.all(`
+        SELECT 
+          r.id,
+          r.user_id,
+          r.user_name,
+          r.date_range_start,
+          r.date_range_end,
+          r.review_method,
+          r.is_locked,
+          r.created_at,
+          r.ai_report,
+          w.week_number,
+          w.date_range_start as week_start,
+          w.date_range_end as week_end
+        FROM review_reports r
+        LEFT JOIN weeks w ON r.week_id = w.id
+        WHERE r.week_id = ?
+        ORDER BY r.created_at DESC
+      `, [weekId], (err, rows) => {
+        if (err) {
+          Logger.error('获取周报告失败:', err);
+          reject(err);
+        } else {
+          resolve(rows || []);
+        }
+      });
+    });
+  }
+
+  // 获取周数详情
+  async getWeekById(weekId) {
+    return new Promise((resolve, reject) => {
+      this.db.get(`
+        SELECT 
+          w.id,
+          w.week_number,
+          w.year,
+          w.date_range_start,
+          w.date_range_end,
+          w.report_count,
+          w.locked_count,
+          w.unlocked_count,
+          w.created_at,
+          w.updated_at
+        FROM weeks w
+        WHERE w.id = ?
+      `, [weekId], (err, row) => {
+        if (err) {
+          Logger.error('获取周数详情失败:', err);
+          reject(err);
+        } else {
+          resolve(row);
+        }
+      });
+    });
+  }
+
+  // 更新周数统计
+  async updateWeekStatistics(weekId) {
+    return new Promise((resolve, reject) => {
+      this.db.run(`
+        UPDATE weeks 
+        SET 
+          report_count = (
+            SELECT COUNT(*) FROM review_reports WHERE week_id = ?
+          ),
+          locked_count = (
+            SELECT COUNT(*) FROM review_reports WHERE week_id = ? AND is_locked = 1
+          ),
+          unlocked_count = (
+            SELECT COUNT(*) FROM review_reports WHERE week_id = ? AND is_locked = 0
+          ),
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `, [weekId, weekId, weekId, weekId], function(err) {
+        if (err) {
+          Logger.error('更新周数统计失败:', err);
+          reject(err);
+        } else {
+          resolve({ weekId });
+        }
+      });
+    });
+  }
+
+  // 数据迁移：将现有报告关联到周数
+  async migrateExistingReports() {
+    return new Promise((resolve, reject) => {
+      this.db.all('SELECT * FROM review_reports WHERE week_id IS NULL', (err, reports) => {
+        if (err) {
+          Logger.error('获取未关联报告失败:', err);
+          reject(err);
+        } else if (reports.length === 0) {
+          Logger.info('没有需要迁移的报告数据');
+          resolve({ migrated: 0 });
+        } else {
+          Logger.info(`开始迁移 ${reports.length} 条报告数据`);
+          
+          let migratedCount = 0;
+          const migrateNext = (index) => {
+            if (index >= reports.length) {
+              Logger.info(`数据迁移完成，共迁移 ${migratedCount} 条报告`);
+              resolve({ migrated: migratedCount });
+              return;
+            }
+
+            const report = reports[index];
+            const weekNumber = this.calculateWeekNumber(report.date_range_end);
+            const year = require('dayjs')(report.date_range_end).year();
+            
+            this.createOrUpdateWeek(weekNumber, year, report.date_range_end)
+              .then(({ weekId }) => {
+                return new Promise((resolve, reject) => {
+                  this.db.run(`
+                    UPDATE review_reports 
+                    SET week_id = ?, week_number = ?
+                    WHERE id = ?
+                  `, [weekId, weekNumber, report.id], function(err) {
+                    if (err) {
+                      Logger.error('更新报告周数关联失败:', err);
+                      reject(err);
+                    } else {
+                      migratedCount++;
+                      resolve();
+                    }
+                  });
+                });
+              })
+              .then(() => {
+                migrateNext(index + 1);
+              })
+              .catch(reject);
+          };
+
+          migrateNext(0);
         }
       });
     });

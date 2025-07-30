@@ -5,6 +5,8 @@ import { MenuOutlined } from '@ant-design/icons';
 import Dashboard from './pages/Dashboard';
 import Review from './pages/Review';
 import History from './pages/History';
+import WeekDetail from './pages/WeekDetail';
+import ReportDetail from './pages/ReportDetail';
 import Users from './pages/Users';
 import About from './pages/About';
 import './App.css';
@@ -81,6 +83,8 @@ const MainLayout: React.FC = () => {
           <Route path="/" element={<Dashboard />} />
           <Route path="/review" element={<Review />} />
           <Route path="/history" element={<History />} />
+          <Route path="/history/week/:weekId" element={<WeekDetail />} />
+          <Route path="/history/week/:weekId/report/:reportId" element={<ReportDetail />} />
           <Route path="/users" element={<Users />} />
           <Route path="/about" element={<About />} />
         </Routes>

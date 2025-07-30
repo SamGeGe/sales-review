@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API调试页面</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .result { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .error { background: #ffebee; color: #c62828; }
+        .success { background: #e8f5e8; color: #2e7d32; }
+        button { padding: 10px 20px; margin: 5px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #1565c0; }
+    </style>
+</head>
+<body>
+    <h1>API调试页面</h1>
+    
+    <button onclick="testBackendHealth()">测试后端健康状态</button>
+    <button onclick="testWeeksAPI()">测试周数API</button>
+    <button onclick="testCORS()">测试CORS</button>
+    <button onclick="clearResults()">清除结果</button>
+    
+    <div id="results"></div>
+
+    <script>
+        const API_BASE = 'http://localhost:6091';
+        
+        function addResult(title, content, isError = false) {
+            const resultsDiv = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `result ${isError ? 'error' : 'success'}`;
+            div.innerHTML = `<h3>${title}</h3><pre>${JSON.stringify(content, null, 2)}</pre>`;
+            resultsDiv.appendChild(div);
+        }
+        
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+        
+        async function testBackendHealth() {
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                addResult('后端健康检查', { status: response.status, data });
+            } catch (error) {
+                addResult('后端健康检查失败', { error: error.message }, true);
+            }
+        }
+        
+        async function testWeeksAPI() {
+            try {
+                const response = await fetch(`${API_BASE}/api/weeks`);
+                const data = await response.json();
+                addResult('周数API测试', { status: response.status, data });
+            } catch (error) {
+                addResult('周数API测试失败', { error: error.message }, true);
+            }
+        }
+        
+        async function testCORS() {
+            try {
+                const response = await fetch(`${API_BASE}/api/weeks`, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Origin': 'http://localhost:6090',
+                        'Access-Control-Request-Method': 'GET',
+                        'Access-Control-Request-Headers': 'Content-Type'
+                    }
+                });
+                addResult('CORS测试', { 
+                    status: response.status, 
+                    headers: Object.fromEntries(response.headers.entries())
+                });
+            } catch (error) {
+                addResult('CORS测试失败', { error: error.message }, true);
+            }
+        }
+    </script>
+</body>
+</html> 

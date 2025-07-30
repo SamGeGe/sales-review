@@ -221,6 +221,12 @@ class ApiService {
 
     } catch (error: any) {
       console.error('流式报告生成失败:', error);
+      // 如果是流中断但内容已经生成，不抛出错误
+      if (error.name === 'AbortError' || error.message.includes('aborted')) {
+        console.log('⚠️ 流被中断，但内容可能已经生成');
+        // 不调用onError，让前端自己判断
+        return;
+      }
       if (onError) {
         onError(error.message);
       }
@@ -322,6 +328,29 @@ class ApiService {
     return this.request(`/api/reports/lock/${id}`, {
       method: 'PUT'
     });
+  }
+
+  // 通用GET请求
+  async get(endpoint: string): Promise<ApiResponse<any>> {
+    return this.request(endpoint, { method: 'GET' });
+  }
+
+  // 通用DELETE请求
+  async delete(endpoint: string): Promise<ApiResponse<any>> {
+    return this.request(endpoint, { method: 'DELETE' });
+  }
+
+  // 通用PUT请求
+  async put(endpoint: string, data?: any): Promise<ApiResponse<any>> {
+    return this.request(endpoint, {
+      method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined
+    });
+  }
+
+  // 获取基础URL
+  getBaseUrl(): string {
+    return this.baseURL;
   }
 }
 

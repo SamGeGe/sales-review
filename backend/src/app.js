@@ -38,6 +38,7 @@ app.use('/reports', express.static(path.join(__dirname, '../reports')));
 app.use('/api/reviews', require('./routes/reviews'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/users', require('./routes/users'));
+app.use('/api/weeks', require('./routes/weeks'));
 
 // 健康检查
 app.get('/health', (req, res) => {
