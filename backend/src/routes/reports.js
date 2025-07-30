@@ -209,7 +209,7 @@ router.get('/download/word/:id', async (req, res) => {
     const wordBuffer = await ReportExportService.generateWordReport(reportContent);
     
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`);
     res.send(wordBuffer);
     
     Logger.success(`Word报告下载成功: ${id}`);
@@ -252,7 +252,7 @@ router.get('/download/pdf/:id', async (req, res) => {
     Logger.info(`PDF生成成功，大小: ${pdfBuffer.length} 字节`);
     
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`);
     res.send(pdfBuffer);
     
     Logger.success(`PDF报告下载成功: ${id}`);
