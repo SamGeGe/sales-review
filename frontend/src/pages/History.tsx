@@ -154,7 +154,7 @@ const History: React.FC = () => {
     }
 
     try {
-             const response = await fetch(`${config.getFrontend().backend_url}/reports/download/${format}/${report.id}`, {
+             const response = await fetch(`${config.getFrontend().backend_url}/api/reports/download/${format}/${report.id}`, {
         method: 'GET',
       });
       
@@ -163,7 +163,9 @@ const History: React.FC = () => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-                 a.download = `${report.user_name}_第${calculatePeriodNumber(reports, report)}周复盘报告.${format}`;
+                 // 根据格式设置正确的文件扩展名
+      const fileExtension = format === 'word' ? 'docx' : format;
+      a.download = `${report.user_name}_第${calculatePeriodNumber(reports, report)}周复盘报告.${fileExtension}`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);

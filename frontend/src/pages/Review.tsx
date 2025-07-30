@@ -32,28 +32,8 @@ const Review: React.FC = () => {
   const [coordinationItems, setCoordinationItems] = useState<string>('');
   const [otherItems, setOtherItems] = useState<string>('');
 
-  // 历史复盘数据
-  const [historicalReviews] = useState<any[]>([
-    {
-      id: 1,
-      dateRange: [dayjs('2025-07-14'), dayjs('2025-07-20')],
-      user: 1,
-      weekPlan: [
-        { task: '完成客户A的合同签署', expectedResult: '合同正式生效', completionStatus: '已完成' },
-        { task: '拜访潜在客户B', expectedResult: '获得合作意向', completionStatus: '部分完成' },
-        { task: '团队培训会议', expectedResult: '提升团队技能', completionStatus: '已完成' }
-      ]
-    },
-    {
-      id: 2,
-      dateRange: [dayjs('2025-07-07'), dayjs('2025-07-13')],
-      user: 1,
-      weekPlan: [
-        { task: '制定Q3销售策略', expectedResult: '策略文档完成', completionStatus: '已完成' },
-        { task: '客户满意度调研', expectedResult: '调研报告出炉', completionStatus: '已完成' }
-      ]
-    }
-  ]);
+  // 历史复盘数据 - 改为动态获取
+  const [historicalReviews, setHistoricalReviews] = useState<any[]>([]);
 
   // 验证状态
   const [validateStatus, setValidateStatus] = useState<{ [key: string]: any }>({});
@@ -81,6 +61,36 @@ const Review: React.FC = () => {
     { value: 'online', label: '线上复盘' }
   ];
 
+  // 获取历史复盘数据
+  const fetchHistoricalReviews = async () => {
+    try {
+      console.log('🔄 开始获取历史复盘数据...');
+      const response = await apiService.getReviewHistory();
+      
+      if (response.success && response.data) {
+        // 转换后端数据格式为前端需要的格式
+        const formattedReviews = response.data.map((review: any) => ({
+          id: review.id,
+          dateRange: [dayjs(review.date_range_start), dayjs(review.date_range_end)],
+          user: review.user_id,
+          user_name: review.user_name,
+          review_method: review.review_method,
+          is_locked: review.is_locked,
+          created_at: review.created_at
+        }));
+        
+        setHistoricalReviews(formattedReviews);
+        console.log('✅ 历史复盘数据已更新:', formattedReviews);
+      } else {
+        console.log('⚠️ 获取历史复盘数据失败:', response);
+        setHistoricalReviews([]);
+      }
+    } catch (error) {
+      console.error('❌ 获取历史复盘数据出错:', error);
+      setHistoricalReviews([]);
+    }
+  };
+
   // 初始化上周行动回顾数据
   useEffect(() => {
     // 只在组件首次加载时初始化空数据
@@ -94,6 +104,16 @@ const Review: React.FC = () => {
     setLastWeekActions(initialActions);
     console.log('📅 初始化上周行动复盘数据:', initialActions);
   }, []); // 只在组件挂载时执行一次
+
+  // 组件挂载时获取历史数据
+  useEffect(() => {
+    fetchHistoricalReviews();
+  }, []);
+
+  // 监听历史数据变化，更新日历显示
+  useEffect(() => {
+    console.log('📊 历史复盘数据已更新，日历显示将刷新');
+  }, [historicalReviews]);
 
   // 快速填充测试数据
   const handleQuickFill = () => {
@@ -880,6 +900,10 @@ ${weekPlanRows.filter(row => row.task.trim() || row.expectedResult.trim()).map((
         setIsLocked(true);
         message.success('报告已锁定并保存到数据库');
         console.log('✅ 报告保存成功:', response.data);
+        
+        // 保存成功后立即刷新历史数据，更新日历显示
+        await fetchHistoricalReviews();
+        console.log('🔄 历史数据已刷新，日历显示将更新');
       } else {
         message.error(`保存失败: ${response.error}`);
       }
@@ -942,6 +966,10 @@ ${weekPlanRows.filter(row => row.task.trim() || row.expectedResult.trim()).map((
       
       if (success) {
         message.success(`${format.toUpperCase()}报告下载成功`);
+        
+        // 下载成功后也刷新历史数据，确保日历显示最新状态
+        await fetchHistoricalReviews();
+        console.log('🔄 下载后历史数据已刷新');
       } else {
         message.error(`${format.toUpperCase()}报告下载失败`);
       }

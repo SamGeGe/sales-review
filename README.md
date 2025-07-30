@@ -185,11 +185,19 @@ docker-compose logs -f
 
 ### 数据库管理
 ```bash
-# 重置数据库
-rm backend/data/sales_review.db
+# ⚠️ 警告：以下命令会删除所有数据，请谨慎使用！
+
+# 重置数据库（仅在需要清空所有数据时使用）
+# rm backend/data/sales_review.db
 
 # 查看数据库
 sqlite3 backend/data/sales_review.db ".tables"
+
+# 备份数据库
+cp backend/data/sales_review.db backend/data/sales_review.db.backup.$(date +%Y%m%d_%H%M%S)
+
+# 恢复数据库
+# cp backend/data/sales_review.db.backup.20250101_120000 backend/data/sales_review.db
 ```
 
 ### 配置测试

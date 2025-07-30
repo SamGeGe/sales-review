@@ -39,6 +39,7 @@ out/
 *.sqlite3
 backend/data/sales_review.db
 backend/data/*.db
+backend/data/backups/
 
 # ===== 日志文件 =====
 *.log
