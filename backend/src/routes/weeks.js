@@ -104,7 +104,19 @@ router.get('/:weekId/reports', async (req, res) => {
 router.get('/:weekId/download/:format', async (req, res) => {
   try {
     const { weekId, format } = req.params;
-    const reports = await databaseService.getReportsByWeek(weekId);
+    const { reportIds } = req.query; // 获取要下载的报告ID列表
+    
+    let reports;
+    if (reportIds) {
+      // 如果指定了报告ID，只下载选中的报告
+      const reportIdArray = reportIds.split(',').map(id => parseInt(id));
+      const allReports = await databaseService.getReportsByWeek(weekId);
+      reports = allReports.filter(report => reportIdArray.includes(report.id));
+    } else {
+      // 否则下载该周的所有报告
+      reports = await databaseService.getReportsByWeek(weekId);
+    }
+    
     const week = await databaseService.getWeekById(weekId);
     
     if (!week) {
@@ -117,7 +129,7 @@ router.get('/:weekId/download/:format', async (req, res) => {
     if (reports.length === 0) {
       return res.status(404).json({
         success: false,
-        message: '该周没有报告'
+        message: '没有找到要下载的报告'
       });
     }
 

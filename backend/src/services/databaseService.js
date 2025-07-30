@@ -541,27 +541,71 @@ class DatabaseService {
 
   async lockReviewReport(id) {
     return new Promise((resolve, reject) => {
-      this.db.run('UPDATE review_reports SET is_locked = 1 WHERE id = ?', [id], function(err) {
+      this.db.run('UPDATE review_reports SET is_locked = 1 WHERE id = ?', [id], async function(err) {
         if (err) {
           Logger.error('锁定复盘报告失败:', err);
           reject(err);
         } else {
-          resolve({ id, is_locked: true });
+          try {
+            // 获取报告所属的周ID
+            const report = await new Promise((resolve, reject) => {
+              this.db.get('SELECT week_id FROM review_reports WHERE id = ?', [id], (err, row) => {
+                if (err) reject(err);
+                else resolve(row);
+              });
+            });
+            
+            if (report && report.week_id) {
+              // 更新周统计信息
+              Logger.info('开始更新周统计信息', { reportId: id, weekId: report.week_id });
+              await this.updateWeekStatistics(report.week_id);
+              Logger.info('周统计信息更新完成', { reportId: id, weekId: report.week_id });
+            } else {
+              Logger.warn('报告没有关联的周ID', { reportId: id });
+            }
+            
+            resolve({ id, is_locked: true });
+          } catch (error) {
+            Logger.error('更新周统计失败:', error);
+            resolve({ id, is_locked: true }); // 即使统计更新失败，锁定操作仍然成功
+          }
         }
-      });
+      }.bind(this));
     });
   }
 
   async unlockReviewReport(id) {
     return new Promise((resolve, reject) => {
-      this.db.run('UPDATE review_reports SET is_locked = 0 WHERE id = ?', [id], function(err) {
+      this.db.run('UPDATE review_reports SET is_locked = 0 WHERE id = ?', [id], async function(err) {
         if (err) {
           Logger.error('解锁复盘报告失败:', err);
           reject(err);
         } else {
-          resolve({ id, is_locked: false });
+          try {
+            // 获取报告所属的周ID
+            const report = await new Promise((resolve, reject) => {
+              this.db.get('SELECT week_id FROM review_reports WHERE id = ?', [id], (err, row) => {
+                if (err) reject(err);
+                else resolve(row);
+              });
+            });
+            
+            if (report && report.week_id) {
+              // 更新周统计信息
+              Logger.info('开始更新周统计信息', { reportId: id, weekId: report.week_id });
+              await this.updateWeekStatistics(report.week_id);
+              Logger.info('周统计信息更新完成', { reportId: id, weekId: report.week_id });
+            } else {
+              Logger.warn('报告没有关联的周ID', { reportId: id });
+            }
+            
+            resolve({ id, is_locked: false });
+          } catch (error) {
+            Logger.error('更新周统计失败:', error);
+            resolve({ id, is_locked: false }); // 即使统计更新失败，解锁操作仍然成功
+          }
         }
-      });
+      }.bind(this));
     });
   }
 

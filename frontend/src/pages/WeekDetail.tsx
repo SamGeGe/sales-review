@@ -176,19 +176,53 @@ const WeekDetail: React.FC = () => {
     }
 
     try {
-      message.loading('正在准备下载...', 0);
+      message.loading('正在准备批量下载...', 0);
       
-      // 逐个下载选中的报告
-      for (const reportId of selectedReports) {
-        await handleDownloadReport(reportId, format);
+      // 调用后端的批量下载接口，传递选中的报告ID
+      const reportIdsParam = selectedReports.join(',');
+      const response = await fetch(`${apiService.getBaseUrl()}/api/weeks/${weekId}/download/${format}?reportIds=${reportIdsParam}`, {
+        method: 'GET',
+      });
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        
+        // 从响应头获取文件名
+        const contentDisposition = response.headers.get('content-disposition');
+        let fileName = '';
+        
+        if (contentDisposition) {
+          const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+          if (filenameMatch && filenameMatch[1]) {
+            fileName = decodeURIComponent(filenameMatch[1].replace(/['"]/g, ''));
+          }
+        }
+        
+        // 如果没有从响应头获取到文件名，使用默认格式
+        if (!fileName) {
+          const fileExtension = format === 'word' ? 'docx' : format === 'pdf' ? 'pdf' : 'zip';
+          fileName = `第${weekData?.week_number}周_批量下载.${fileExtension}`;
+        }
+        
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        message.destroy();
+        message.success(`批量下载完成，共下载 ${selectedReports.length} 份报告`);
+        setSelectedReports([]);
+      } else {
+        message.destroy();
+        message.error(`批量下载失败: ${response.statusText}`);
       }
-      
+    } catch (error: any) {
       message.destroy();
-      message.success(`批量下载完成，共下载 ${selectedReports.length} 份报告`);
-      setSelectedReports([]);
-    } catch (error) {
-      message.destroy();
-      message.error('批量下载失败');
+      message.error(`批量下载失败: ${error.message}`);
     }
   };
 
