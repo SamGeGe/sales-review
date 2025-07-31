@@ -15,9 +15,16 @@ if [ ! -f "/app/conf.yaml" ]; then
 fi
 
 # 创建必要的目录
-mkdir -p /app/backend/data
 mkdir -p /app/backend/reports
 mkdir -p /app/backend/uploads
+
+# 等待MySQL服务启动
+echo "⏳ 等待MySQL服务启动..."
+until mysql -h mysql -u root -e "SELECT 1" > /dev/null 2>&1; do
+    echo "等待MySQL连接..."
+    sleep 2
+done
+echo "✅ MySQL服务连接成功"
 
 # 启动后端服务
 echo "🔧 启动后端服务..."
@@ -27,7 +34,7 @@ BACKEND_PID=$!
 
 # 等待后端启动
 echo "⏳ 等待后端服务启动..."
-sleep 10
+sleep 15
 
 # 检查后端是否启动成功
 if ! curl -f http://localhost:6091/health > /dev/null 2>&1; then
@@ -44,7 +51,7 @@ FRONTEND_PID=$!
 
 # 等待前端启动
 echo "⏳ 等待前端服务启动..."
-sleep 10
+sleep 15
 
 # 检查前端是否启动成功
 if ! curl -f http://localhost:6090 > /dev/null 2>&1; then
@@ -58,6 +65,7 @@ echo "📊 服务信息:"
 echo "  前端地址: http://localhost:6090"
 echo "  后端地址: http://localhost:6091"
 echo "  健康检查: http://localhost:6091/health"
+echo "  MySQL地址: mysql:3306"
 
 # 等待进程
 wait $BACKEND_PID $FRONTEND_PID 

@@ -31,11 +31,11 @@ llm:
   primary:
     base_url: http://183.221.24.83:8000/v1
     model: qwq32b-q8
-    api_key: sk-fake
+    api_key: sk-1234567890abcdef
     timeout: 120000
     max_retries: 3
   
-  # 备用LLM配置
+  # 备用LLM配置（已禁用）
   backup:
     base_url: https://openrouter.ai/api/v1
     model: qwen/qwen3-235b-a22b-2507

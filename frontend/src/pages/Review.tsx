@@ -22,6 +22,24 @@ const RequiredMark = () => <span style={{ color: '#ff4d4f', marginRight: 4 }}>*<
 const Review: React.FC = () => {
   // const navigate = useNavigate(); // 注释掉未使用的变量
   
+  // 添加CSS动画样式
+  React.useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.5; }
+        100% { opacity: 1; }
+      }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      if (document.head.contains(style)) {
+        document.head.removeChild(style);
+      }
+    };
+  }, []);
+  
   // 表单数据状态
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
   const [selectedUser, setSelectedUser] = useState<number | null>(null);
@@ -51,6 +69,11 @@ const Review: React.FC = () => {
   const [showReport, setShowReport] = useState<boolean>(false);
   const [hasHistoricalData, setHasHistoricalData] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [isStreaming, setIsStreaming] = useState<boolean>(false);
+
+  // 添加日期样式缓存
+  const [dateStyleCache, setDateStyleCache] = useState<Record<string, any>>({});
+  const [historicalDateCache, setHistoricalDateCache] = useState<Record<string, boolean>>({});
 
   // 用户选项
   const [userOptions, setUserOptions] = useState<{ value: number; label: string }[]>([]);
@@ -69,18 +92,24 @@ const Review: React.FC = () => {
       
       if (response.success && response.data) {
         // 转换后端数据格式为前端需要的格式
-        const formattedReviews = response.data.map((review: any) => ({
-          id: review.id,
-          dateRange: [dayjs(review.date_range_start), dayjs(review.date_range_end)],
-          user: review.user_id,
-          user_name: review.user_name,
-          review_method: review.review_method,
-          is_locked: review.is_locked,
-          created_at: review.created_at
-        }));
+        const formattedReviews = response.data.map((review: any) => {
+          // 确保日期格式正确解析
+          const startDate = dayjs(review.date_range_start);
+          const endDate = dayjs(review.date_range_end);
+          
+          return {
+            id: review.id,
+            dateRange: [startDate, endDate],
+            user: review.user_id,
+            user_name: review.user_name,
+            review_method: review.review_method,
+            is_locked: review.is_locked,
+            created_at: review.created_at
+          };
+        });
         
         setHistoricalReviews(formattedReviews);
-        console.log('✅ 历史复盘数据已更新:', formattedReviews);
+        console.log('✅ 历史复盘数据已更新，共', formattedReviews.length, '条记录');
       } else {
         console.log('⚠️ 获取历史复盘数据失败:', response);
         setHistoricalReviews([]);
@@ -113,6 +142,9 @@ const Review: React.FC = () => {
   // 监听历史数据变化，更新日历显示
   useEffect(() => {
     console.log('📊 历史复盘数据已更新，日历显示将刷新');
+    // 清除缓存，强制重新计算
+    setDateStyleCache({});
+    setHistoricalDateCache({});
   }, [historicalReviews]);
 
   // 快速填充测试数据
@@ -272,39 +304,79 @@ const Review: React.FC = () => {
     }
   };
 
-  // 获取日期高亮样式
+  // 获取日期高亮样式 - 优化版本
   const getDateCellStyle = (date: dayjs.Dayjs) => {
+    const dateKey = date.format('YYYY-MM-DD');
+    
+    // 检查缓存
+    if (dateStyleCache[dateKey]) {
+      return dateStyleCache[dateKey];
+    }
+    
     // 检查是否在历史复盘区间内
     for (let i = 0; i < historicalReviews.length; i++) {
       const review = historicalReviews[i];
       const start = review.dateRange[0];
       const end = review.dateRange[1];
       
-      if (date.isSameOrAfter(start, 'day') && date.isSameOrBefore(end, 'day')) {
+      // 使用dayjs的isSameOrAfter和isSameOrBefore进行日期比较
+      const isInRange = date.isSameOrAfter(start, 'day') && date.isSameOrBefore(end, 'day');
+      
+      if (isInRange) {
         // 交替使用两种颜色
         const color = i % 2 === 0 ? '#e6f7ff' : '#f6ffed';
-        return { 
+        const style = { 
           backgroundColor: color,
           borderRadius: '4px',
           fontWeight: 'bold'
         };
+        
+        // 缓存结果
+        setDateStyleCache(prev => ({ ...prev, [dateKey]: style }));
+        return style;
       }
     }
     
+    // 缓存空样式
+    setDateStyleCache(prev => ({ ...prev, [dateKey]: {} }));
     return {};
   };
 
-  // 日期单元格渲染
+  // 日期单元格渲染 - 优化版本
   const dateCellRender = (current: any) => {
     const date = dayjs(current);
+    const dateKey = date.format('YYYY-MM-DD');
     const style = getDateCellStyle(date);
     
-    // 检查是否是历史复盘日期
+    // 检查缓存
+    if (historicalDateCache[dateKey] !== undefined) {
+      const isHistoricalDate = historicalDateCache[dateKey];
+      return (
+        <div style={style}>
+          {date.date()}
+          {isHistoricalDate && (
+            <div style={{ 
+              fontSize: '8px', 
+              color: '#1890ff', 
+              textAlign: 'center',
+              marginTop: '2px'
+            }}>
+              复盘
+            </div>
+          )}
+        </div>
+      );
+    }
+    
+    // 检查是否是历史复盘日期 - 优化版本
     const isHistoricalDate = historicalReviews.some(review => {
       const start = review.dateRange[0];
       const end = review.dateRange[1];
       return date.isSameOrAfter(start, 'day') && date.isSameOrBefore(end, 'day');
     });
+    
+    // 缓存结果
+    setHistoricalDateCache(prev => ({ ...prev, [dateKey]: isHistoricalDate }));
     
     return (
       <div style={style}>
@@ -824,6 +896,7 @@ ${weekPlanRows.filter(row => row.task.trim() || row.expectedResult.trim()).map((
 
       // 调用API生成报告
       let accumulatedContent = '';
+      setIsStreaming(true);
       
       await apiService.generateReportStream(
         requestData,
@@ -841,7 +914,10 @@ ${weekPlanRows.filter(row => row.task.trim() || row.expectedResult.trim()).map((
           if (content.includes('|')) {
             console.log('📊 检测到表格内容:', content.substring(0, 200) + '...');
           }
-          setReportContent(accumulatedContent);
+          // 使用setTimeout确保React能够及时渲染每个内容块
+          setTimeout(() => {
+            setReportContent(accumulatedContent);
+          }, 0);
         },
         // 完成回调
         (report: string) => {
@@ -849,11 +925,13 @@ ${weekPlanRows.filter(row => row.task.trim() || row.expectedResult.trim()).map((
           setReportContent(report);
           setGenerationProgress(100);
           setGenerationStatus('报告生成完成');
+          setIsStreaming(false);
           message.success('AI报告生成成功！');
         },
         // 错误回调
         (error: string) => {
           console.error('❌ 报告生成错误:', error);
+          setIsStreaming(false);
           // 如果已经有内容生成，不显示错误提示
           if (accumulatedContent.length > 0) {
             console.log('⚠️ 检测到流中断，但内容已生成，不显示错误');
@@ -932,20 +1010,19 @@ ${weekPlanRows.filter(row => row.task.trim() || row.expectedResult.trim()).map((
 
   // 下载报告
   const handleDownload = async (format: 'word' | 'pdf') => {
-    if (!reportContent) {
-      message.warning('没有可下载的报告');
-      return;
-    }
-
     try {
-      console.log('开始下载', format, '格式报告');
-      
-      // 先保存报告到数据库
+      if (!reportContent) {
+        message.error('请先生成报告内容');
+        return;
+      }
+
+      // 获取用户名
       const selectedUserOption = userOptions.find(user => user.value === selectedUser);
       const selectedUserName = selectedUserOption ? selectedUserOption.label : '未知用户';
-      
+
+      // 保存报告数据
       const saveData = {
-        dateRange: dateRange ? [dateRange[0].format('YYYY-MM-DD'), dateRange[1].format('YYYY-MM-DD')] : null,
+        dateRange,
         selectedUser,
         selectedUserName,
         reviewMethod,
@@ -968,18 +1045,76 @@ ${weekPlanRows.filter(row => row.task.trim() || row.expectedResult.trim()).map((
       const reportId = saveResponse.data.id;
       console.log('报告已保存，ID:', reportId);
 
-      // 下载文件
-      const filename = `sales-review-${Date.now()}.${format === 'word' ? 'docx' : 'pdf'}`;
-      const success = await apiService.downloadFile(`/api/reports/download/${format}/${reportId}`, filename);
+      // 使用直接的fetch调用下载文件，与历史页面保持一致
+      const response = await fetch(`${apiService.getBaseUrl()}/api/reports/download/${format}/${reportId}`, {
+        method: 'GET',
+      });
       
-      if (success) {
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        
+        // 优先从响应头获取文件名
+        const contentDisposition = response.headers.get('content-disposition');
+        let fileName = '';
+        
+        if (contentDisposition) {
+          console.log('Content-Disposition header:', contentDisposition);
+          // 尝试多种格式的文件名解析
+          let filenameMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/);
+          if (filenameMatch) {
+            fileName = decodeURIComponent(filenameMatch[1]);
+          } else {
+            filenameMatch = contentDisposition.match(/filename="([^"]+)"/);
+            if (filenameMatch) {
+              fileName = decodeURIComponent(filenameMatch[1]);
+            } else {
+              filenameMatch = contentDisposition.match(/filename=([^;]+)/);
+              if (filenameMatch) {
+                fileName = decodeURIComponent(filenameMatch[1]);
+              }
+            }
+          }
+          console.log('Parsed filename:', fileName);
+        }
+        
+        // 如果仍然没有获取到文件名，生成默认文件名
+        if (!fileName) {
+          const formatDateRange = (startDate: string, endDate: string) => {
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            const startStr = `${start.getMonth() + 1}-${start.getDate()}`;
+            const endStr = `${end.getMonth() + 1}-${end.getDate()}`;
+            return `${startStr}至${endStr}`;
+          };
+          
+          if (dateRange && dateRange[0] && dateRange[1]) {
+            const dateRangeStr = formatDateRange(dateRange[0].format('YYYY-MM-DD'), dateRange[1].format('YYYY-MM-DD'));
+            const fileExtension = format === 'word' ? 'docx' : 'pdf';
+            fileName = `${selectedUserName}_${dateRangeStr}_复盘报告.${fileExtension}`;
+            console.log('Generated filename:', fileName);
+          } else {
+            const fileExtension = format === 'word' ? 'docx' : 'pdf';
+            fileName = `${selectedUserName}_复盘报告.${fileExtension}`;
+            console.log('Generated filename (no date range):', fileName);
+          }
+        }
+        
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
         message.success(`${format.toUpperCase()}报告下载成功`);
         
         // 下载成功后也刷新历史数据，确保日历显示最新状态
         await fetchHistoricalReviews();
         console.log('🔄 下载后历史数据已刷新');
       } else {
-        message.error(`${format.toUpperCase()}报告下载失败`);
+        message.error(`下载失败: ${response.statusText}`);
       }
     } catch (error) {
       console.error('下载失败:', error);
@@ -1422,6 +1557,29 @@ ${weekPlanRows.filter(row => row.task.trim() || row.expectedResult.trim()).map((
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
                 color: '#2c3e50'
               }}>
+                {isStreaming && (
+                  <div style={{
+                    padding: '12px',
+                    marginBottom: '16px',
+                    backgroundColor: '#e6f7ff',
+                    border: '1px solid #91d5ff',
+                    borderRadius: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <div style={{
+                      width: '12px',
+                      height: '12px',
+                      borderRadius: '50%',
+                      backgroundColor: '#1890ff',
+                      animation: 'pulse 1.5s infinite'
+                    }} />
+                    <span style={{ color: '#1890ff', fontWeight: '500' }}>
+                      正在流式生成报告内容...
+                    </span>
+                  </div>
+                )}
                 <ReactMarkdown 
                   remarkPlugins={[remarkGfm]}
                   components={{
@@ -1651,21 +1809,6 @@ ${weekPlanRows.filter(row => row.task.trim() || row.expectedResult.trim()).map((
                   loading={isGenerating}
                 >
                   {isGenerating ? '生成中...' : '重新生成'}
-                </Button>
-                <Button
-                  onClick={() => handleDownload('word')}
-                  disabled={isLocked || isGenerating}
-                  icon={<DownloadOutlined />}
-                  style={{ marginRight: 8 }}
-                >
-                  下载Word
-                </Button>
-                <Button
-                  onClick={() => handleDownload('pdf')}
-                  disabled={isLocked || isGenerating}
-                  icon={<DownloadOutlined />}
-                >
-                  下载PDF
                 </Button>
               </Space>
             </div>

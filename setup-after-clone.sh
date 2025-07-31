@@ -100,9 +100,9 @@ echo -e "${GREEN}✅ 依赖安装完成${NC}"
 echo -e "${BLUE}📋 创建必要目录...${NC}"
 
 # 创建必要的目录
-mkdir -p backend/data
 mkdir -p backend/reports
 mkdir -p backend/uploads
+mkdir -p backend/logs
 
 echo -e "${GREEN}✅ 目录创建完成${NC}"
 
@@ -136,6 +136,8 @@ echo -e "   cat DEPLOYMENT_SUMMARY.md"
 echo ""
 echo -e "${BLUE}💡 提示:${NC}"
 echo -e "- 请确保在 conf.yaml 中填入正确的API密钥"
+echo -e "- 请确保MySQL服务已启动并配置正确"
 echo -e "- 开发环境端口: 前端 6090, 后端 6091"
 echo -e "- Docker环境端口: 前端 6092, 后端 6093"
-echo -e "- 访问地址: http://localhost:6090 (开发) 或 http://localhost:6092 (Docker)" 
+echo -e "- 访问地址: http://localhost:6090 (开发) 或 http://localhost:6092 (Docker)"
+echo -e "- 数据库迁移文档: cat DATABASE_MIGRATION.md" 

@@ -100,171 +100,70 @@ router.get('/:weekId/reports', async (req, res) => {
   }
 });
 
-// 批量下载指定周的报告
+// 下载周报告
 router.get('/:weekId/download/:format', async (req, res) => {
   try {
     const { weekId, format } = req.params;
-    const { reportIds } = req.query; // 获取要下载的报告ID列表
-    
-    let reports;
-    if (reportIds) {
-      // 如果指定了报告ID，只下载选中的报告
-      const reportIdArray = reportIds.split(',').map(id => parseInt(id));
-      const allReports = await databaseService.getReportsByWeek(weekId);
-      Logger.info('批量下载 - 接收到的参数', { weekId, reportIds, reportIdArray, allReportIds: allReports.map(r => r.id) });
-      reports = allReports.filter(report => reportIdArray.includes(report.id));
-      Logger.info('批量下载 - 过滤后的报告', { count: reports.length, reportIds: reports.map(r => r.id) });
-    } else {
-      // 否则下载该周的所有报告
-      reports = await databaseService.getReportsByWeek(weekId);
-    }
-    
+    const { week_number, date_range } = req.query; // 接收前端传递的参数
+
+    Logger.apiRequest('GET', `/api/weeks/${weekId}/download/${format}`, req.query);
+
+    // 获取周数据
     const week = await databaseService.getWeekById(weekId);
-    
     if (!week) {
       return res.status(404).json({
         success: false,
-        message: '周数不存在'
+        error: '周数据不存在'
       });
     }
 
+    // 获取该周的所有报告
+    const reports = await databaseService.getReportsByWeekId(weekId);
     if (reports.length === 0) {
       return res.status(404).json({
         success: false,
-        message: '没有找到要下载的报告'
+        error: '该周没有报告'
       });
     }
 
-    // 格式化日期范围
-    const formatDateRange = (startDate, endDate) => {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      const startStr = `${start.getMonth() + 1}-${start.getDate()}`;
-      const endStr = `${end.getMonth() + 1}-${end.getDate()}`;
-      return `${startStr}至${endStr}`;
-    };
+    // 生成文件名 - 优先使用前端传递的参数
+    let zipFileName;
+    if (week_number && date_range) {
+      // 使用前端传递的参数
+      zipFileName = `第${week_number}周-${date_range}批量复盘明细.zip`;
+    } else {
+      // 备用方案：使用周数据
+      const startDateChinese = formatDateToChinese(week.date_range_start);
+      const endDateChinese = formatDateToChinese(week.date_range_end);
+      const dateRange = `${startDateChinese}-${endDateChinese}`;
+      zipFileName = `第${week.week_number}周-${dateRange}批量复盘明细.zip`;
+    }
 
-    // 如果指定了reportIds参数，说明是批量下载，总是返回ZIP格式
-    if (reportIds) {
-      // 批量下载时，总是创建ZIP压缩包
-      const archiver = require('archiver');
-      const archive = archiver('zip', { zlib: { level: 9 } });
-      
-      const zipFileName = `第${week.week_number}周_${formatDateRange(week.date_range_start, week.date_range_end)}_复盘报告.zip`;
-      res.setHeader('Content-Type', 'application/zip');
-      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(zipFileName)}`);
-      
-      // 设置错误处理
-      archive.on('error', (err) => {
-        Logger.error('ZIP文件生成失败:', err);
+    // 生成批量文件
+    const fileNameWithPath = await reportExportService.generateBatchReport(reports, format, zipFileName);
+
+    // 设置响应头
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileNameWithPath)}"`);
+    res.setHeader('Content-Type', 'application/zip');
+
+    // 发送文件
+    const filePath = path.join(__dirname, '..', '..', 'reports', fileNameWithPath);
+    res.sendFile(filePath, (err) => {
+      if (err) {
+        Logger.error('周报告文件发送失败:', err);
         res.status(500).json({
           success: false,
-          message: 'ZIP文件生成失败',
-          error: err.message
+          error: '周报告文件发送失败'
         });
-      });
-      
-      // 设置完成处理
-      archive.on('end', () => {
-        Logger.info('批量报告下载成功', { weekId, format, count: reports.length, zipFileName });
-      });
-      
-      archive.pipe(res);
-      
-      for (const report of reports) {
-        // 直接从数据库读取报告内容
-        const reportContent = report.ai_report || '';
-        const dateRange = formatDateRange(report.date_range_start, report.date_range_end);
-        const fileName = `第${week.week_number}周_${dateRange}_${report.user_name}_复盘报告.${format === 'word' ? 'docx' : 'pdf'}`;
-        
-        if (format === 'word') {
-          const wordBuffer = await ReportExportService.generateWordReport(reportContent);
-          archive.append(wordBuffer, { name: fileName });
-        } else if (format === 'pdf') {
-          const pdfBuffer = await ReportExportService.generatePdfReport(reportContent);
-          archive.append(pdfBuffer, { name: fileName });
-        }
-        
-        Logger.info(`添加报告到压缩包: ${fileName}`);
       }
-      
-      archive.finalize();
-    } else {
-      // 如果没有指定reportIds，说明是下载该周的所有报告
-      // 如果只有一个报告，直接下载该报告
-      if (reports.length === 1) {
-        const report = reports[0];
-        
-        // 直接从数据库读取报告内容
-        const reportContent = report.ai_report || '';
-        const dateRange = formatDateRange(report.date_range_start, report.date_range_end);
-        const fileName = `第${week.week_number}周_${dateRange}_${report.user_name}_复盘报告.${format === 'word' ? 'docx' : 'pdf'}`;
-        
-        if (format === 'word') {
-          const wordBuffer = await ReportExportService.generateWordReport(reportContent);
-          res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-          res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
-          res.send(wordBuffer);
-        } else if (format === 'pdf') {
-          const pdfBuffer = await ReportExportService.generatePdfReport(reportContent);
-          res.setHeader('Content-Type', 'application/pdf');
-          res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
-          res.send(pdfBuffer);
-        }
-        
-        Logger.info('单个报告下载成功', { weekId, format, reportId: report.id, fileName });
-      } else {
-        // 多个报告时，创建一个压缩包
-        const archiver = require('archiver');
-        const archive = archiver('zip', { zlib: { level: 9 } });
-        
-        const zipFileName = `第${week.week_number}周_${formatDateRange(week.date_range_start, week.date_range_end)}_复盘报告.zip`;
-              res.setHeader('Content-Type', 'application/zip');
-      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(zipFileName)}`);
-        
-        // 设置错误处理
-        archive.on('error', (err) => {
-          Logger.error('ZIP文件生成失败:', err);
-          res.status(500).json({
-            success: false,
-            message: 'ZIP文件生成失败',
-            error: err.message
-          });
-        });
-        
-        // 设置完成处理
-        archive.on('end', () => {
-          Logger.info('批量报告下载成功', { weekId, format, count: reports.length, zipFileName });
-        });
-        
-        archive.pipe(res);
-        
-        for (const report of reports) {
-          // 直接从数据库读取报告内容
-          const reportContent = report.ai_report || '';
-          const dateRange = formatDateRange(report.date_range_start, report.date_range_end);
-          const fileName = `第${week.week_number}周_${dateRange}_${report.user_name}_复盘报告.${format === 'word' ? 'docx' : 'pdf'}`;
-        
-          if (format === 'word') {
-            const wordBuffer = await ReportExportService.generateWordReport(reportContent);
-            archive.append(wordBuffer, { name: fileName });
-          } else if (format === 'pdf') {
-            const pdfBuffer = await ReportExportService.generatePdfReport(reportContent);
-            archive.append(pdfBuffer, { name: fileName });
-          }
-        
-          Logger.info(`添加报告到压缩包: ${fileName}`);
-        }
-        
-        archive.finalize();
-      }
-    }
+    });
+
+    Logger.apiResponse(200, { fileName: fileNameWithPath });
   } catch (error) {
-    Logger.error('批量下载周报告失败:', error);
+    Logger.error('下载周报告失败:', error);
     res.status(500).json({
       success: false,
-      message: '批量下载周报告失败',
-      error: error.message
+      error: '下载周报告失败'
     });
   }
 });

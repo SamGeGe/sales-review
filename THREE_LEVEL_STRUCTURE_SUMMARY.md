@@ -188,9 +188,9 @@ History.tsx          # 一级页面：周数概览
 
 ### **1. 环境要求**
 - Node.js 18+
-- SQLite3
+- MySQL 8.0+
 - 前端：React + TypeScript
-- 后端：Express + SQLite
+- 后端：Express + MySQL
 
 ### **2. 启动步骤**
 ```bash

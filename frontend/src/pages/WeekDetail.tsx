@@ -88,7 +88,30 @@ const WeekDetail: React.FC = () => {
 
   const handleDownloadReport = async (reportId: number, format: 'word' | 'pdf') => {
     try {
-      const response = await fetch(`${apiService.getBaseUrl()}/api/reports/download/${format}/${reportId}`, {
+      // 获取报告数据
+      const report = reports.find(r => r.id === reportId);
+      if (!report) {
+        message.error('报告数据不存在');
+        return;
+      }
+
+      // 获取前端页面显示的参数
+      const weekNumber = weekData?.week_number;
+      const userName = report.user_name;
+      
+      // 格式化日期范围
+      const startDate = dayjs(report.date_range_start).format('YYYY年M月D日');
+      const endDate = dayjs(report.date_range_end).format('YYYY年M月D日');
+      const dateRange = `${startDate}-${endDate}`;
+
+      // 构建查询参数
+      const params = new URLSearchParams({
+        week_number: weekNumber?.toString() || '',
+        date_range: dateRange,
+        user_name: userName
+      });
+
+      const response = await fetch(`${apiService.getBaseUrl()}/api/reports/download/${format}/${reportId}?${params}`, {
         method: 'GET',
       });
       
@@ -98,54 +121,9 @@ const WeekDetail: React.FC = () => {
         const a = document.createElement('a');
         a.href = url;
         
-        // 优先从响应头获取文件名
-        const contentDisposition = response.headers.get('content-disposition');
-        let fileName = '';
-        
-        if (contentDisposition) {
-          console.log('Content-Disposition header:', contentDisposition);
-          // 尝试多种格式的文件名解析
-          let filenameMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/);
-          if (filenameMatch) {
-            fileName = decodeURIComponent(filenameMatch[1]);
-          } else {
-            filenameMatch = contentDisposition.match(/filename="([^"]+)"/);
-            if (filenameMatch) {
-              fileName = decodeURIComponent(filenameMatch[1]);
-            } else {
-              filenameMatch = contentDisposition.match(/filename=([^;]+)/);
-              if (filenameMatch) {
-                fileName = decodeURIComponent(filenameMatch[1]);
-              }
-            }
-          }
-          console.log('Parsed filename:', fileName);
-        }
-        
-        // 如果仍然没有获取到文件名，尝试从报告数据中生成
-        if (!fileName) {
-          const report = reports.find(r => r.id === reportId);
-          if (report) {
-            const formatDateRange = (startDate: string, endDate: string) => {
-              const start = new Date(startDate);
-              const end = new Date(endDate);
-              const startStr = `${start.getMonth() + 1}-${start.getDate()}`;
-              const endStr = `${end.getMonth() + 1}-${end.getDate()}`;
-              return `${startStr}至${endStr}`;
-            };
-            
-            const dateRange = formatDateRange(report.date_range_start, report.date_range_end);
-            const fileExtension = format === 'word' ? 'docx' : 'pdf';
-            fileName = `第${weekData?.week_number}周_${dateRange}_${report.user_name}_复盘报告.${fileExtension}`;
-            console.log('Generated filename from report data:', fileName);
-          }
-        }
-        
-        // 如果没有从响应头获取到文件名，使用默认格式
-        if (!fileName) {
-          const fileExtension = format === 'word' ? 'docx' : format;
-          fileName = `报告_${reportId}.${fileExtension}`;
-        }
+        // 使用前端页面显示的参数生成文件名
+        const fileExtension = format === 'word' ? 'docx' : format;
+        const fileName = `${userName}-第${weekNumber}周-${dateRange}复盘明细.${fileExtension}`;
         
         a.download = fileName;
         document.body.appendChild(a);
@@ -208,39 +186,30 @@ const WeekDetail: React.FC = () => {
     }
 
     try {
-      message.loading('正在准备批量下载...', 0);
+      message.loading('正在准备下载...', 0);
       
-      // 调用后端的批量下载接口，传递选中的报告ID
-      const reportIdsParam = selectedReports.join(',');
-      console.log('批量下载 - 选中的报告ID:', selectedReports);
-      console.log('批量下载 - 报告ID参数:', reportIdsParam);
-      console.log('批量下载 - 当前周ID:', weekId);
-      console.log('批量下载 - 当前报告列表:', reports);
+      // 获取前端页面显示的参数
+      const weekNumber = weekData?.week_number;
       
-      // 检查后端连接
-      const isConnected = await apiService.checkConnection();
-      if (!isConnected) {
-        message.destroy();
-        message.error('无法连接到后端服务，请检查服务是否启动');
-        return;
-      }
-      
-      // 测试网络连接
-      console.log('测试网络连接...');
-      try {
-        const testResponse = await fetch(`${apiService.getBaseUrl()}/health`, {
-          method: 'GET',
-          mode: 'cors',
-          credentials: 'omit'
-        });
-        console.log('网络连接测试结果:', testResponse.status, testResponse.statusText);
-      } catch (error) {
-        console.error('网络连接测试失败:', error);
-      }
+      // 格式化日期范围
+      const startDate = dayjs(weekData?.date_range_start).format('YYYY年M月D日');
+      const endDate = dayjs(weekData?.date_range_end).format('YYYY年M月D日');
+      const dateRange = `${startDate}-${endDate}`;
 
-      // 直接使用 fetch 进行二进制下载
-      const response = await fetch(`${apiService.getBaseUrl()}/api/weeks/${weekId}/download/${format}?reportIds=${reportIdsParam}`, {
-        method: 'GET',
+      // 构建请求体
+      const requestBody = {
+        reportIds: selectedReports,
+        format: format,
+        week_number: weekNumber,
+        date_range: dateRange
+      };
+
+      const response = await fetch(`${apiService.getBaseUrl()}/api/reports/batch-download`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
         mode: 'cors',
         credentials: 'omit',
         signal: AbortSignal.timeout(30000) // 30秒超时
@@ -252,35 +221,8 @@ const WeekDetail: React.FC = () => {
         const a = document.createElement('a');
         a.href = url;
         
-        // 从响应头获取文件名
-        const contentDisposition = response.headers.get('content-disposition');
-        let fileName = '';
-        
-        if (contentDisposition) {
-          console.log('Batch download Content-Disposition header:', contentDisposition);
-          // 尝试多种格式的文件名解析
-          let filenameMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/);
-          if (filenameMatch) {
-            fileName = decodeURIComponent(filenameMatch[1]);
-          } else {
-            filenameMatch = contentDisposition.match(/filename="([^"]+)"/);
-            if (filenameMatch) {
-              fileName = decodeURIComponent(filenameMatch[1]);
-            } else {
-              filenameMatch = contentDisposition.match(/filename=([^;]+)/);
-              if (filenameMatch) {
-                fileName = decodeURIComponent(filenameMatch[1]);
-              }
-            }
-          }
-          console.log('Parsed batch download filename:', fileName);
-        }
-        
-        // 如果没有从响应头获取到文件名，使用默认格式
-        if (!fileName) {
-          // 批量下载时，无论什么格式都应该是ZIP文件
-          fileName = `第${weekData?.week_number}周_批量下载.zip`;
-        }
+        // 使用前端页面显示的参数生成文件名
+        const fileName = `第${weekNumber}周-${dateRange}批量复盘明细.zip`;
         
         a.download = fileName;
         document.body.appendChild(a);
@@ -349,7 +291,7 @@ const WeekDetail: React.FC = () => {
       key: 'date_range_start',
       width: 200,
       render: (text: string, record: WeekReport) => (
-        <span>{text} 至 {record.date_range_end}</span>
+        <span>{dayjs(text).format('YYYY-MM-DD')} 至 {dayjs(record.date_range_end).format('YYYY-MM-DD')}</span>
       ),
     },
     {
@@ -515,7 +457,7 @@ const WeekDetail: React.FC = () => {
           <Col>
             <Title level={3} style={{ margin: 0 }}>
               第{weekData.week_number}周复盘报告 
-              ({weekData.date_range_start} 至 {weekData.date_range_end})
+              ({dayjs(weekData.date_range_start).format('YYYY-MM-DD')} 至 {dayjs(weekData.date_range_end).format('YYYY-MM-DD')})
             </Title>
           </Col>
         </Row>

@@ -114,11 +114,11 @@ const History: React.FC = () => {
       key: 'date_range_start',
       width: isMobile ? 120 : 180,
       render: (startDate: string, record: WeekData) => (
-        <Tooltip title={`${startDate} 至 ${record.date_range_end}`}>
+        <Tooltip title={`${dayjs(startDate).format('YYYY-MM-DD')} 至 ${dayjs(record.date_range_end).format('YYYY-MM-DD')}`}>
           <span style={{ fontSize: isMobile ? '12px' : '14px' }}>
             {isMobile 
               ? `${dayjs(startDate).format('MM/DD')} - ${dayjs(record.date_range_end).format('MM/DD')}`
-              : `${startDate} 至 ${record.date_range_end}`
+              : `${dayjs(startDate).format('YYYY-MM-DD')} 至 ${dayjs(record.date_range_end).format('YYYY-MM-DD')}`
             }
           </span>
         </Tooltip>

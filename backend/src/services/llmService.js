@@ -11,6 +11,7 @@ class LLMService {
     
     this.timeout = 120000; // 120秒超时
     this.useBackup = false; // 是否使用备用LLM
+    this.disableBackup = true; // 禁用备用LLM，避免401错误
   }
 
   // 解析LLM配置
@@ -255,7 +256,9 @@ class LLMService {
       let lastWeekPlanText = '无';
       if (lastWeekPlan && Array.isArray(lastWeekPlan) && lastWeekPlan.length > 0) {
         lastWeekPlanText = lastWeekPlan.map((item, index) => {
-          return `${index + 1}. 任务：${item.task || '无'}\n   期望结果：${item.expectedResult || '无'}\n   完成情况：${item.completion || '无'}`;
+          const completionStatus = item.completion || '无';
+          const completionIcon = completionStatus === '完成' ? '✅' : '❌';
+          return `${index + 1}. 任务：${item.task || '无'}\n   期望结果：${item.expectedResult || '无'}\n   完成情况：${completionIcon} ${completionStatus}`;
         }).join('\n\n');
       }
 
@@ -455,12 +458,19 @@ ${Object.entries(pageContext.otherFields || {}).map(([key, field]) =>
       Logger.llmError(error);
       
       // 如果是主LLM失败且未使用备用LLM，尝试切换到备用LLM
-      if (!this.useBackup && this.backupBaseURL) {
+      if (!this.useBackup && this.backupBaseURL && !this.disableBackup) {
         Logger.warning('主LLM请求失败，尝试切换到备用LLM', { error: error.message });
         if (this.switchToBackup()) {
           // 递归调用，使用备用LLM重试
           return this.generateReportStream(formattedData, onChunk);
         }
+      }
+      
+      // 如果备用LLM也失败，返回错误但不自动切换
+      if (this.useBackup) {
+        Logger.error('备用LLM也失败，返回错误', { error: error.message });
+        // 切换回主LLM，避免下次请求继续使用有问题的备用LLM
+        this.switchToPrimary();
       }
       
       throw new Error(`LLM请求失败: ${error.message}`);
@@ -499,6 +509,15 @@ ${Object.entries(pageContext.otherFields || {}).map(([key, field]) =>
       // 获取当前LLM配置
       const llmConfig = this.getCurrentLLMConfig();
       Logger.llmRequest(llmConfig.baseURL, llmConfig.model, fullPrompt.length);
+      
+      // 添加调试信息
+      console.log('🔍 LLM请求配置:', {
+        baseURL: llmConfig.baseURL,
+        model: llmConfig.model,
+        apiKey: llmConfig.apiKey ? `${llmConfig.apiKey.substring(0, 10)}...` : 'undefined',
+        useBackup: this.useBackup,
+        disableBackup: this.disableBackup
+      });
 
       const response = await axios({
         method: 'POST',
@@ -537,12 +556,19 @@ ${Object.entries(pageContext.otherFields || {}).map(([key, field]) =>
       Logger.llmError(error);
       
       // 如果是主LLM失败且未使用备用LLM，尝试切换到备用LLM
-      if (!this.useBackup && this.backupBaseURL) {
+      if (!this.useBackup && this.backupBaseURL && !this.disableBackup) {
         Logger.warning('主LLM请求失败，尝试切换到备用LLM', { error: error.message });
         if (this.switchToBackup()) {
           // 递归调用，使用备用LLM重试
           return this.generateReport(reviewData);
         }
+      }
+      
+      // 如果备用LLM也失败，返回错误但不自动切换
+      if (this.useBackup) {
+        Logger.error('备用LLM也失败，返回错误', { error: error.message });
+        // 切换回主LLM，避免下次请求继续使用有问题的备用LLM
+        this.switchToPrimary();
       }
       
       return {
@@ -553,4 +579,4 @@ ${Object.entries(pageContext.otherFields || {}).map(([key, field]) =>
   }
 }
 
-module.exports = new LLMService(); 
+module.exports = LLMService; 

@@ -319,7 +319,7 @@ docker-compose restart
 # rm backend/data/sales_review.db
 
 # 查看数据库
-sqlite3 backend/data/sales_review.db ".tables"
+mysql -u root -p sales_review -e "SHOW TABLES;"
 
 # 备份数据库
 cp backend/data/sales_review.db backend/data/sales_review.db.backup.$(date +%Y%m%d_%H%M%S)

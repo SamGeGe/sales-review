@@ -144,6 +144,8 @@ class ApiService {
         throw new Error('后端服务连接失败');
       }
 
+      console.log('🚀 开始流式生成报告...');
+
       // 发送POST请求并处理流式响应
       const response = await fetch(`${this.baseURL}/api/reports/generate-stream`, {
         method: 'POST',
@@ -167,11 +169,17 @@ class ApiService {
 
       const decoder = new TextDecoder();
       let buffer = '';
+      let accumulatedContent = '';
+
+      console.log('📡 开始读取流式数据...');
 
       while (true) {
         const { done, value } = await reader.read();
         
-        if (done) break;
+        if (done) {
+          console.log('📡 流式数据读取完成');
+          break;
+        }
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
@@ -181,7 +189,7 @@ class ApiService {
           if (line.startsWith('data: ')) {
             try {
               const data: StreamEvent = JSON.parse(line.slice(6));
-              console.log('📡 SSE数据:', data);
+              console.log('📡 SSE数据:', data.type, data.message || data.content?.substring(0, 50) || '');
               
               switch (data.type) {
                 case 'status':
@@ -193,15 +201,19 @@ class ApiService {
                   
                 case 'content':
                   if (onContent && data.content) {
-                    console.log('📝 内容块:', data.content);
+                    console.log('📝 内容块长度:', data.content.length);
+                    accumulatedContent += data.content;
                     onContent(data.content);
                   }
                   break;
                   
                 case 'complete':
                   if (onComplete && data.report) {
-                    console.log('✅ 报告完成:', data.report.length);
+                    console.log('✅ 报告完成，总长度:', data.report.length);
                     onComplete(data.report);
+                  } else if (onComplete && accumulatedContent) {
+                    console.log('✅ 使用累计内容作为完整报告，长度:', accumulatedContent.length);
+                    onComplete(accumulatedContent);
                   }
                   return;
                   
@@ -217,6 +229,12 @@ class ApiService {
             }
           }
         }
+      }
+
+      // 如果流结束但没有收到complete事件，使用累计内容
+      if (accumulatedContent && onComplete) {
+        console.log('⚠️ 流结束但未收到complete事件，使用累计内容');
+        onComplete(accumulatedContent);
       }
 
     } catch (error: any) {

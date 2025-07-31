@@ -367,42 +367,61 @@ class DatabaseService {
             weekId,
             weekNumber
           ],
-          async function(err) {
+          function(err) {
             if (err) {
               Logger.error('保存复盘报告失败:', err);
               reject(err);
             } else {
               const reportId = this.lastID;
               
-              // 保存报告内容到文件
-              try {
-                const fs = require('fs').promises;
-                const path = require('path');
-                const reportsDir = path.join(__dirname, '..', '..', 'reports');
-                
-                // 确保reports目录存在
-                await fs.mkdir(reportsDir, { recursive: true });
-                
-                // 保存报告内容到文件
-                const reportPath = path.join(reportsDir, `${reportId}.txt`);
-                await fs.writeFile(reportPath, aiReport, 'utf-8');
-                
-                Logger.info(`报告文件保存成功: ${reportPath}`);
-              } catch (fileError) {
-                Logger.error('保存报告文件失败:', fileError);
-                // 不阻止数据库保存成功，但记录错误
+              // 检查reportId是否有效
+              if (!reportId) {
+                Logger.error('保存复盘报告失败: reportId为undefined');
+                reject(new Error('保存报告失败: 无法获取报告ID'));
+                return;
               }
               
-              // 更新周数统计
-              await this.updateWeekStatistics(weekId);
+              Logger.info(`报告保存成功，ID: ${reportId}`);
               
-              resolve({ 
-                id: reportId, 
-                weekId, 
-                weekNumber, 
-                year,
-                ...reportData 
-              });
+              // 使用async/await处理文件保存和统计更新
+              (async () => {
+                try {
+                  // 保存报告内容到文件
+                  const fs = require('fs').promises;
+                  const path = require('path');
+                  const reportsDir = path.join(__dirname, '..', '..', 'reports');
+                  
+                  // 确保reports目录存在
+                  await fs.mkdir(reportsDir, { recursive: true });
+                  
+                  // 保存报告内容到文件
+                  const reportPath = path.join(reportsDir, `${reportId}.txt`);
+                  await fs.writeFile(reportPath, aiReport, 'utf-8');
+                  
+                  Logger.info(`报告文件保存成功: ${reportPath}`);
+                  
+                  // 更新周数统计
+                  await this.updateWeekStatistics(weekId);
+                  
+                  resolve({ 
+                    id: reportId, 
+                    weekId, 
+                    weekNumber, 
+                    year,
+                    ...reportData 
+                  });
+                } catch (fileError) {
+                  Logger.error('保存报告文件或更新统计失败:', fileError);
+                  // 即使文件保存失败，也返回数据库保存成功的结果
+                  resolve({ 
+                    id: reportId, 
+                    weekId, 
+                    weekNumber, 
+                    year,
+                    ...reportData 
+                  });
+                }
+              })();
             }
           }.bind(this)
         );
@@ -620,6 +639,12 @@ class DatabaseService {
     // 计算从2025年第一个周一到当前周一的周数
     const firstMonday2025 = dayjs('2025-01-06'); // 2025年第一个周一
     const weekNumber = monday.diff(firstMonday2025, 'week') + 1;
+    
+    // 如果结束日期是周日，需要特殊处理
+    // 因为周日应该属于以该周日结束的那一周，而不是下一周
+    if (reportEndDate.day() === 0) { // 0 = 周日
+      return weekNumber - 1;
+    }
     
     return weekNumber;
   }

@@ -1,88 +1,213 @@
 const express = require('express');
 const cors = require('cors');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
 const path = require('path');
+require('dotenv').config({ path: './config.env' });
+
+// 导入服务
+const MySQLService = require('./services/mysqlService');
+const LLMService = require('./services/llmService');
+const ReportExportService = require('./services/reportExportService');
 const Logger = require('./utils/logger');
-const config = require('./utils/config');
+
+// 导入路由
+const usersRouter = require('./routes/users');
+const reportsRouter = require('./routes/reports');
+const reviewsRouter = require('./routes/reviews');
 
 const app = express();
-// 使用配置管理器读取端口，确保从conf.yaml读取
-const PORT = config.getBackendPort() || process.env.PORT || 6091;
+const PORT = process.env.PORT || 6091;
 
-// 中间件配置
-app.use(helmet());
+// 环境检测
+const isProduction = process.env.NODE_ENV === 'production';
+Logger.info(`🔍 后端环境检测: ${isProduction ? '生产环境' : '本地开发环境'}`);
+
+// 设置时区
+process.env.TZ = process.env.TZ || 'Asia/Shanghai';
+Logger.info(`🕐 设置系统时区为东八区北京时间 (${process.env.TZ})`);
+
+// 加载配置
+Logger.info('✅ 配置文件加载成功');
+Logger.info(`🔧 设置后端端口: ${PORT}`);
+
+// CORS配置
+const corsOrigins = process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : ['http://localhost:6090', 'http://localhost:6091'];
+Logger.info(`🔧 后端CORS配置: ${JSON.stringify(corsOrigins)}`);
+
 app.use(cors({
-  origin: config.getBackend().cors_origins,
-  credentials: false,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Accept']
+  origin: corsOrigins,
+  credentials: true
 }));
 
-// 速率限制
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15分钟
-  max: 100, // 限制每个IP 100个请求
-  message: '请求过于频繁，请稍后再试'
-});
-app.use('/api/', limiter);
-
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // 静态文件服务
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
-app.use('/reports', express.static(path.join(__dirname, '../reports')));
-
-// 路由
-app.use('/api/reviews', require('./routes/reviews'));
-app.use('/api/reports', require('./routes/reports'));
-app.use('/api/users', require('./routes/users'));
-app.use('/api/weeks', require('./routes/weeks'));
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+app.use('/reports', express.static(path.join(__dirname, '..', 'reports')));
 
 // 健康检查
 app.get('/health', (req, res) => {
   Logger.info('健康检查请求', { path: req.path });
-  // 使用北京时间
-  const beijingTime = new Date(new Date().getTime() + (8 * 60 * 60 * 1000));
-  res.json({ status: 'ok', timestamp: beijingTime.toISOString() });
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    database: 'mysql'
+  });
 });
 
-// 配置文件API端点
-app.get('/api/config', (req, res) => {
+// 初始化数据库服务
+const databaseService = new MySQLService();
+
+// 初始化LLM服务
+const llmService = new LLMService();
+
+// 将服务注入到路由中
+app.use('/api/users', usersRouter(databaseService));
+app.use('/api/reports', reportsRouter(databaseService, llmService, ReportExportService));
+app.use('/api/reviews', reviewsRouter(databaseService));
+
+// 添加 /api/weeks 路由，直接代理到 reviews/weeks
+app.get('/api/weeks', async (req, res) => {
   try {
-    const fs = require('fs');
-    const path = require('path');
-    const configPath = path.join(__dirname, '..', '..', 'conf.yaml');
-    const configContent = fs.readFileSync(configPath, 'utf8');
+    Logger.apiRequest('GET', '/api/weeks', req.query);
     
-    res.setHeader('Content-Type', 'text/yaml');
-    res.send(configContent);
-    Logger.info('配置文件请求', { path: req.path });
+    const weeks = await databaseService.getAllWeeks();
+    
+    // 转换数据格式以匹配前端期望
+    const formattedWeeks = weeks.map(week => ({
+      id: week.id,
+      week_number: week.week_number,
+      year: week.year,
+      date_range_start: week.start_date,
+      date_range_end: week.end_date,
+      report_count: week.report_count,
+      locked_count: parseInt(week.locked_count) || 0,
+      unlocked_count: parseInt(week.unlocked_count) || 0,
+      created_at: week.created_at,
+      updated_at: week.updated_at
+    }));
+    
+    Logger.apiResponse(200, { count: formattedWeeks.length, data: formattedWeeks });
+    res.json({ 
+      success: true,
+      count: formattedWeeks.length, 
+      data: formattedWeeks 
+    });
   } catch (error) {
-    Logger.error('配置文件读取失败', error);
-    res.status(500).json({ error: '配置文件读取失败' });
+    Logger.error('获取周数失败:', error);
+    res.status(500).json({ 
+      success: false,
+      error: '获取周数失败' 
+    });
+  }
+});
+
+// 添加 /api/weeks/:weekId 路由，获取特定周的详情和报告
+app.get('/api/weeks/:weekId', async (req, res) => {
+  try {
+    const { weekId } = req.params;
+    Logger.apiRequest('GET', `/api/weeks/${weekId}`, req.query);
+    
+    // 获取周详情
+    const week = await databaseService.getWeekById(weekId);
+    if (!week) {
+      return res.status(404).json({ 
+        success: false,
+        error: '周数不存在' 
+      });
+    }
+    
+    // 获取该周的所有报告
+    const reports = await databaseService.getReportsByWeek(weekId);
+    
+    // 转换数据格式
+    const formattedWeek = {
+      id: week.id,
+      week_number: week.week_number,
+      year: week.year,
+      date_range_start: week.start_date,
+      date_range_end: week.end_date,
+      report_count: week.report_count,
+      locked_count: parseInt(week.locked_count) || 0,
+      unlocked_count: parseInt(week.unlocked_count) || 0,
+      created_at: week.created_at,
+      updated_at: week.updated_at
+    };
+    
+    const formattedReports = reports.map(report => ({
+      id: report.id,
+      user_name: report.user_name,
+      review_method: report.review_method,
+      is_locked: report.is_locked,
+      created_at: report.created_at,
+      date_range_start: report.date_range_start,
+      date_range_end: report.date_range_end
+    }));
+    
+    Logger.apiResponse(200, { week: formattedWeek, reports: formattedReports });
+    res.json({ 
+      success: true,
+      data: {
+        week: formattedWeek,
+        reports: formattedReports
+      }
+    });
+  } catch (error) {
+    Logger.error('获取周详情失败:', error);
+    res.status(500).json({ 
+      success: false,
+      error: '获取周详情失败' 
+    });
   }
 });
 
 // 错误处理中间件
 app.use((err, req, res, next) => {
-  Logger.error('服务器内部错误', err);
+  Logger.error('服务器错误:', err);
   res.status(500).json({ 
+    success: false, 
     error: '服务器内部错误',
-    message: '请稍后再试'
+    message: err.message 
   });
 });
 
 // 404处理
 app.use('*', (req, res) => {
-  Logger.warning('接口不存在', { path: req.originalUrl });
-  res.status(404).json({ error: '接口不存在' });
+  res.status(404).json({ 
+    success: false, 
+    error: '接口不存在' 
+  });
 });
 
-app.listen(PORT, () => {
-  Logger.success(`🚀 后端服务启动成功，端口: ${PORT}`);
-  Logger.info(`📊 健康检查: http://localhost:${PORT}/health`);
+// 优雅关闭
+process.on('SIGTERM', async () => {
+  Logger.info('收到SIGTERM信号，正在优雅关闭...');
+  await databaseService.close();
+  process.exit(0);
 });
 
-module.exports = app; 
+process.on('SIGINT', async () => {
+  Logger.info('收到SIGINT信号，正在优雅关闭...');
+  await databaseService.close();
+  process.exit(0);
+});
+
+// 启动服务器
+async function startServer() {
+  try {
+    // 初始化数据库
+    await databaseService.initDatabase();
+    
+    // 启动服务器
+    app.listen(PORT, () => {
+      Logger.success(`🚀 后端服务启动成功，端口: ${PORT}`);
+      Logger.info(`📊 健康检查: http://localhost:${PORT}/health`);
+    });
+  } catch (error) {
+    Logger.error('服务器启动失败:', error);
+    process.exit(1);
+  }
+}
+
+startServer(); 

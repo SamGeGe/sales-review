@@ -14,7 +14,8 @@ RUN apk add --no-cache \
     ca-certificates \
     ttf-freefont \
     curl \
-    bash
+    bash \
+    mysql-client
 
 # 设置环境变量
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
@@ -35,13 +36,12 @@ COPY backend/package*.json ./backend/
 RUN npm install --registry=https://registry.npmmirror.com --production=false
 RUN cd frontend && npm install --registry=https://registry.npmmirror.com --production=false
 RUN cd backend && npm install --ignore-scripts --no-optional --registry=https://registry.npmmirror.com --production=false
-RUN cd backend && npm rebuild better-sqlite3
 
 # 复制源代码
 COPY . .
 
 # 创建必要的目录
-RUN mkdir -p backend/data backend/reports backend/uploads
+RUN mkdir -p backend/reports backend/uploads
 
 # 设置文件权限
 RUN chmod +x docker-entrypoint.sh

@@ -20,7 +20,7 @@
 │   ├── 历史页面 - 复盘记录查询和管理
 │   ├── 用户管理 - 用户信息管理
 │   └── 仪表板 - 数据统计和概览
-├── 后端 (Node.js + Express + SQLite)
+├── 后端 (Node.js + Express + MySQL)
 │   ├── API服务 - RESTful接口
 │   ├── 数据库服务 - 数据持久化
 │   ├── LLM服务 - AI报告生成
@@ -187,17 +187,17 @@ docker-compose logs -f
 ```bash
 # ⚠️ 警告：以下命令会删除所有数据，请谨慎使用！
 
-# 重置数据库（仅在需要清空所有数据时使用）
-# rm backend/data/sales_review.db
-
 # 查看数据库
-sqlite3 backend/data/sales_review.db ".tables"
+mysql -u root -p sales_review -e "SHOW TABLES;"
 
 # 备份数据库
-cp backend/data/sales_review.db backend/data/sales_review.db.backup.$(date +%Y%m%d_%H%M%S)
+mysqldump -u root -p sales_review > backup_$(date +%Y%m%d_%H%M%S).sql
 
 # 恢复数据库
-# cp backend/data/sales_review.db.backup.20250101_120000 backend/data/sales_review.db
+# mysql -u root -p sales_review < backup_20250101_120000.sql
+
+# 重置数据库（仅在需要清空所有数据时使用）
+# mysql -u root -p -e "DROP DATABASE sales_review; CREATE DATABASE sales_review;"
 ```
 
 ### 配置测试
@@ -300,11 +300,15 @@ sysctl -p
 
 ### 数据库优化
 ```bash
-# SQLite优化
-PRAGMA journal_mode = WAL;
-PRAGMA synchronous = NORMAL;
-PRAGMA cache_size = 10000;
-PRAGMA temp_store = MEMORY;
+# MySQL优化
+# 编辑MySQL配置文件 /etc/mysql/mysql.conf.d/mysqld.cnf
+[mysqld]
+innodb_buffer_pool_size = 1G
+innodb_log_file_size = 256M
+innodb_flush_log_at_trx_commit = 2
+max_connections = 200
+query_cache_size = 128M
+query_cache_type = 1
 ```
 
 ## 🤝 贡献指南

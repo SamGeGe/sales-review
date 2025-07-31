@@ -77,7 +77,28 @@ const ReportDetail: React.FC = () => {
 
   const handleDownload = async (format: 'word' | 'pdf') => {
     try {
-      const response = await fetch(`${apiService.getBaseUrl()}/api/reports/download/${format}/${reportId}`, {
+      if (!report) {
+        message.error('报告数据不存在');
+        return;
+      }
+
+      // 获取前端页面显示的参数
+      const weekNumber = report.week_number;
+      const userName = report.user_name;
+      
+      // 格式化日期范围
+      const startDate = dayjs(report.date_range_start).format('YYYY年M月D日');
+      const endDate = dayjs(report.date_range_end).format('YYYY年M月D日');
+      const dateRange = `${startDate}-${endDate}`;
+
+      // 构建查询参数
+      const params = new URLSearchParams({
+        week_number: weekNumber.toString(),
+        date_range: dateRange,
+        user_name: userName
+      });
+
+      const response = await fetch(`${apiService.getBaseUrl()}/api/reports/download/${format}/${reportId}?${params}`, {
         method: 'GET',
       });
       
@@ -87,7 +108,7 @@ const ReportDetail: React.FC = () => {
         const a = document.createElement('a');
         a.href = url;
         const fileExtension = format === 'word' ? 'docx' : format;
-        a.download = `${report?.user_name}_第${weekId}周复盘报告.${fileExtension}`;
+        a.download = `${userName}-第${weekNumber}周-${dateRange}复盘明细.${fileExtension}`;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
@@ -210,7 +231,7 @@ const ReportDetail: React.FC = () => {
             <Text strong>{report.user_name}</Text>
           </Descriptions.Item>
           <Descriptions.Item label="复盘时间">
-            {report.date_range_start} 至 {report.date_range_end}
+            {dayjs(report.date_range_start).format('YYYY-MM-DD')} 至 {dayjs(report.date_range_end).format('YYYY-MM-DD')}
           </Descriptions.Item>
           <Descriptions.Item label="复盘方式">
             <Tag color={report.review_method === 'online' ? 'blue' : 'green'}>

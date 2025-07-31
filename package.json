@@ -23,5 +23,8 @@
     "nodejs"
   ],
   "author": "开发团队",
-  "license": "MIT"
-} 
+  "license": "MIT",
+  "dependencies": {
+    "mysql2": "^3.14.3"
+  }
+}
