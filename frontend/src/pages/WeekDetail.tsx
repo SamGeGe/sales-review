@@ -902,9 +902,216 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
                 overflow: 'auto'
               }}>
                 {integrationReport.report_content ? (
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {integrationReport.report_content}
-                  </ReactMarkdown>
+                  <div 
+                    style={{ 
+                      backgroundColor: '#f5f5f5', 
+                      padding: 16, 
+                      borderRadius: 4,
+                      lineHeight: 1.6
+                    }}
+                  >
+                    <div style={{
+                      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                      color: '#2c3e50'
+                    }}>
+                      <ReactMarkdown 
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          // 表格样式优化
+                          table: ({node, ...props}) => (
+                            <table 
+                              {...props} 
+                              style={{
+                                borderCollapse: 'collapse',
+                                width: '100%',
+                                marginBottom: '24px',
+                                border: '2px solid #e8e8e8',
+                                borderRadius: '6px',
+                                overflow: 'hidden',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                              }}
+                            />
+                          ),
+                          th: ({node, ...props}) => (
+                            <th 
+                              {...props} 
+                              style={{
+                                border: '1px solid #e8e8e8',
+                                padding: '16px 12px',
+                                backgroundColor: '#f8f9fa',
+                                fontWeight: '600',
+                                textAlign: 'left',
+                                fontSize: '14px',
+                                color: '#2c3e50',
+                                borderBottom: '2px solid #dee2e6'
+                              }}
+                            />
+                          ),
+                          td: ({node, ...props}) => (
+                            <td 
+                              {...props} 
+                              style={{
+                                border: '1px solid #e8e8e8',
+                                padding: '14px 12px',
+                                textAlign: 'left',
+                                fontSize: '14px',
+                                lineHeight: '1.6',
+                                verticalAlign: 'top'
+                              }}
+                            />
+                          ),
+                          // 标题样式优化
+                          h1: ({node, ...props}) => (
+                            <h1 {...props} style={{ 
+                              fontSize: '28px', 
+                              fontWeight: '700', 
+                              marginBottom: '20px', 
+                              marginTop: '32px',
+                              color: '#1a365d',
+                              borderBottom: '3px solid #3182ce',
+                              paddingBottom: '8px'
+                            }} />
+                          ),
+                          h2: ({node, ...props}) => (
+                            <h2 {...props} style={{ 
+                              fontSize: '22px', 
+                              fontWeight: '600', 
+                              marginBottom: '16px', 
+                              marginTop: '28px', 
+                              color: '#2d3748',
+                              borderLeft: '4px solid #3182ce',
+                              paddingLeft: '12px'
+                            }} />
+                          ),
+                          h3: ({node, ...props}) => (
+                            <h3 {...props} style={{ 
+                              fontSize: '18px', 
+                              fontWeight: '600', 
+                              marginBottom: '12px', 
+                              marginTop: '20px', 
+                              color: '#4a5568',
+                              backgroundColor: '#f7fafc',
+                              padding: '8px 12px',
+                              borderRadius: '4px'
+                            }} />
+                          ),
+                          // 段落样式优化
+                          p: ({node, ...props}) => (
+                            <p {...props} style={{ 
+                              marginBottom: '16px', 
+                              lineHeight: '1.8',
+                              fontSize: '15px',
+                              color: '#2d3748'
+                            }} />
+                          ),
+                          // 列表样式优化
+                          ul: ({node, ...props}) => (
+                            <ul {...props} style={{ 
+                              marginBottom: '20px', 
+                              paddingLeft: '24px',
+                              lineHeight: '1.8'
+                            }} />
+                          ),
+                          ol: ({node, ...props}) => (
+                            <ol {...props} style={{ 
+                              marginBottom: '20px', 
+                              paddingLeft: '24px',
+                              lineHeight: '1.8'
+                            }} />
+                          ),
+                          li: ({node, ...props}) => (
+                            <li {...props} style={{ 
+                              marginBottom: '8px',
+                              fontSize: '15px',
+                              color: '#2d3748'
+                            }} />
+                          ),
+                          // 强调文本样式优化
+                          strong: ({node, ...props}) => (
+                            <strong {...props} style={{ 
+                              fontWeight: '600', 
+                              color: '#3182ce',
+                              backgroundColor: '#ebf8ff',
+                              padding: '2px 4px',
+                              borderRadius: '3px'
+                            }} />
+                          ),
+                          em: ({node, ...props}) => (
+                            <em {...props} style={{ 
+                              fontStyle: 'italic', 
+                              color: '#718096',
+                              backgroundColor: '#f7fafc',
+                              padding: '1px 3px',
+                              borderRadius: '2px'
+                            }} />
+                          ),
+                          // 代码块样式优化
+                          code: ({node, className, ...props}: any) => {
+                            const isInline = className && !className.includes('language-');
+                            if (isInline) {
+                              return (
+                                <code {...props} style={{
+                                  backgroundColor: '#f1f5f9',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  fontSize: '14px',
+                                  fontFamily: 'Monaco, Consolas, "Courier New", monospace',
+                                  color: '#e53e3e'
+                                }} />
+                              );
+                            }
+                            return (
+                              <code {...props} style={{
+                                backgroundColor: '#f7fafc',
+                                padding: '16px',
+                                borderRadius: '6px',
+                                fontSize: '14px',
+                                fontFamily: 'Monaco, Consolas, "Courier New", monospace',
+                                color: '#2d3748',
+                                display: 'block',
+                                overflow: 'auto',
+                                border: '1px solid #e2e8f0'
+                              }} />
+                            );
+                          },
+                          // 引用块样式优化
+                          blockquote: ({node, ...props}) => (
+                            <blockquote {...props} style={{
+                              borderLeft: '4px solid #3182ce',
+                              paddingLeft: '16px',
+                              margin: '20px 0',
+                              backgroundColor: '#f7fafc',
+                              padding: '16px',
+                              borderRadius: '4px',
+                              fontStyle: 'italic',
+                              color: '#4a5568'
+                            }} />
+                          ),
+                          // 分割线样式优化
+                          hr: ({node, ...props}) => (
+                            <hr {...props} style={{
+                              border: 'none',
+                              height: '2px',
+                              backgroundColor: '#e2e8f0',
+                              margin: '32px 0',
+                              borderRadius: '1px'
+                            }} />
+                          ),
+                          // 链接样式优化
+                          a: ({node, ...props}) => (
+                            <a {...props} style={{
+                              color: '#3182ce',
+                              textDecoration: 'none',
+                              borderBottom: '1px solid #3182ce',
+                              paddingBottom: '1px'
+                            }} />
+                          )
+                        }}
+                      >
+                        {integrationReport.report_content}
+                      </ReactMarkdown>
+                    </div>
+                  </div>
                 ) : (
                   <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
                     <RobotOutlined style={{ fontSize: '48px', marginBottom: '16px' }} />

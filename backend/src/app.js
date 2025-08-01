@@ -142,10 +142,16 @@ app.get('/api/weeks/:weekId', async (req, res) => {
       id: report.id,
       user_name: report.user_name,
       review_method: report.review_method,
+      last_week_plan: report.last_week_plan || [],
+      last_week_actions: report.last_week_actions || [],
+      week_plan: report.week_plan || [],
+      coordination_items: report.coordination_items || '',
+      other_items: report.other_items || '',
       is_locked: report.is_locked,
       created_at: report.created_at,
       date_range_start: report.date_range_start,
-      date_range_end: report.date_range_end
+      date_range_end: report.date_range_end,
+      ai_report: report.ai_report || ''
     }));
     
     Logger.apiResponse(200, { week: formattedWeek, reports: formattedReports });

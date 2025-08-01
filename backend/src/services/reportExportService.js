@@ -240,32 +240,46 @@ async function generateIntegrationReportFile(integrationReport, format, fileName
 // 构建AI整合报告内容
 async function buildAIReportContent(reports, weekNumber, dateRange) {
   try {
-    // 收集所有AI报告内容
+    // 收集所有报告数据，包括原始数据和AI报告
     const allReports = [];
     const users = new Set();
     let earliestDate = null;
     let latestDate = null;
     
     for (const report of reports) {
-      if (report.ai_report) {
-        allReports.push({
-          userName: report.user_name,
-          aiReport: report.ai_report,
-          dateRange: `${dayjs(report.date_range_start).format('YYYY-MM-DD')} 至 ${dayjs(report.date_range_end).format('YYYY-MM-DD')}`
-        });
-        users.add(report.user_name);
-        
-        // 计算日期范围
-        const startDate = dayjs(report.date_range_start);
-        const endDate = dayjs(report.date_range_end);
-        
-        if (!earliestDate || startDate.isBefore(earliestDate)) {
-          earliestDate = startDate;
-        }
-        if (!latestDate || endDate.isAfter(latestDate)) {
-          latestDate = endDate;
-        }
+      // 收集用户信息
+      users.add(report.user_name);
+      
+      // 计算日期范围
+      const startDate = dayjs(report.date_range_start);
+      const endDate = dayjs(report.date_range_end);
+      
+      if (!earliestDate || startDate.isBefore(earliestDate)) {
+        earliestDate = startDate;
       }
+      if (!latestDate || endDate.isAfter(latestDate)) {
+        latestDate = endDate;
+      }
+      
+      // 构建完整的报告数据结构
+      const reportData = {
+        userName: report.user_name,
+        dateRange: `${dayjs(report.date_range_start).format('YYYY-MM-DD')} 至 ${dayjs(report.date_range_end).format('YYYY-MM-DD')}`,
+        reviewMethod: report.review_method,
+        // 原始复盘数据
+        lastWeekPlan: report.last_week_plan || [],
+        lastWeekActions: report.last_week_actions || [],
+        weekPlan: report.week_plan || [],
+        coordinationItems: report.coordination_items || '',
+        otherItems: report.other_items || '',
+        // AI生成的报告内容
+        aiReport: report.ai_report || '',
+        // 报告元数据
+        isLocked: report.is_locked,
+        createdAt: report.created_at
+      };
+      
+      allReports.push(reportData);
     }
     
     // 确定最终日期范围
@@ -290,7 +304,8 @@ async function buildAIReportContent(reports, weekNumber, dateRange) {
       startDay: startDateParts ? startDateParts[3] : '1',
       endYear: endDateParts ? endDateParts[1] : '2025',
       endMonth: endDateParts ? endDateParts[2] : '1',
-      endDay: endDateParts ? endDateParts[3] : '1'
+      endDay: endDateParts ? endDateParts[3] : '1',
+      currentTime: new Date().toISOString()
     };
     
     // 读取模板并编译
@@ -305,6 +320,16 @@ async function buildAIReportContent(reports, weekNumber, dateRange) {
     
     console.log('🔍 LLM实例创建成功');
     console.log('🔍 提示词长度:', prompt.length);
+    console.log('🔍 传递给LLM的报告数量:', allReports.length);
+    console.log('🔍 报告数据结构:', JSON.stringify(allReports.map(r => ({
+      userName: r.userName,
+      hasLastWeekPlan: r.lastWeekPlan.length > 0,
+      hasLastWeekActions: r.lastWeekActions.length > 0,
+      hasWeekPlan: r.weekPlan.length > 0,
+      hasCoordinationItems: !!r.coordinationItems,
+      hasOtherItems: !!r.otherItems,
+      hasAiReport: !!r.aiReport
+    })), null, 2));
     
     try {
       const result = await llmInstance.generateAIReport(prompt);

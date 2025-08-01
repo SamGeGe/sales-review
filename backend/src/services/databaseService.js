@@ -721,6 +721,11 @@ class DatabaseService {
           r.date_range_start,
           r.date_range_end,
           r.review_method,
+          r.last_week_plan,
+          r.last_week_actions,
+          r.week_plan,
+          r.coordination_items,
+          r.other_items,
           r.is_locked,
           r.created_at,
           r.ai_report,
@@ -736,7 +741,14 @@ class DatabaseService {
           Logger.error('获取周报告失败:', err);
           reject(err);
         } else {
-          resolve(rows || []);
+          // 解析JSON字段
+          const processedRows = rows.map(row => ({
+            ...row,
+            last_week_plan: row.last_week_plan ? JSON.parse(row.last_week_plan) : [],
+            last_week_actions: row.last_week_actions ? JSON.parse(row.last_week_actions) : [],
+            week_plan: row.week_plan ? JSON.parse(row.week_plan) : []
+          }));
+          resolve(processedRows || []);
         }
       });
     });
