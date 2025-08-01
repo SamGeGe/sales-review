@@ -51,6 +51,23 @@ CREATE TABLE IF NOT EXISTS review_reports (
   FOREIGN KEY (week_id) REFERENCES weeks(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 创建整合报告表
+CREATE TABLE IF NOT EXISTS ai_integration_reports (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  week_id INT NOT NULL,
+  week_number INT NOT NULL,
+  date_range VARCHAR(100) NOT NULL,
+  user_names TEXT NOT NULL,
+  report_content LONGTEXT NOT NULL,
+  file_path VARCHAR(255),
+  is_locked TINYINT DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (week_id) REFERENCES weeks(id) ON DELETE CASCADE,
+  INDEX idx_week_id (week_id),
+  INDEX idx_week_number (week_number)
+);
+
 -- 插入默认用户
 INSERT IGNORE INTO users (name) VALUES 
 ('张三'),
@@ -64,3 +81,7 @@ INSERT IGNORE INTO weeks (week_number, year, start_date, end_date) VALUES
 (29, 2025, '2025-07-14', '2025-07-20'),
 (30, 2025, '2025-07-21', '2025-07-27'),
 (31, 2025, '2025-07-28', '2025-08-03'); 
+
+-- 插入默认数据
+INSERT INTO ai_integration_reports (week_id, week_number, date_range, user_names, report_content, is_locked) VALUES
+(36, 30, '2025年7月21日-2025年7月27日', '张三、熊维豪', '# 2025年7月21日-2025年7月27日第30周复盘报告整合（AI版）\n\n## 一、报告基本信息\n\n| 项目 | 内容 |\n|------|------|\n| **复盘时间区间** | 2025年7月21日 - 2025年7月27日 |\n| **周数** | 第30周 |\n| **被复盘人** | 张三、熊维豪 |\n\n## 二、整体工作概况\n\n本周团队整体工作表现良好，主要完成了以下工作：\n\n- 张三完成了客户拜访和合同签署\n- 熊维豪负责了市场调研和数据分析\n\n## 三、个人点评\n\n### 张三\n- **工作饱和度**: 中等\n- **任务完成质量**: 良好\n- **建议**: 加强客户关系维护\n\n### 熊维豪\n- **工作饱和度**: 高\n- **任务完成质量**: 优秀\n- **建议**: 继续保持高效工作状态', 0); 

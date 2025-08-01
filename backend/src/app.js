@@ -62,9 +62,12 @@ const databaseService = new MySQLService();
 // 初始化LLM服务
 const llmService = new LLMService();
 
+// 初始化报告导出服务
+const reportExportService = require('./services/reportExportService');
+
 // 将服务注入到路由中
 app.use('/api/users', usersRouter(databaseService));
-app.use('/api/reports', reportsRouter(databaseService, llmService, ReportExportService));
+app.use('/api/reports', reportsRouter(databaseService, llmService, reportExportService));
 app.use('/api/reviews', reviewsRouter(databaseService));
 
 // 添加 /api/weeks 路由，直接代理到 reviews/weeks

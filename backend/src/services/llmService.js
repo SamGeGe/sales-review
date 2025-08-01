@@ -232,6 +232,78 @@ class LLMService {
 请严格按照以上要求，基于用户提供的真实数据生成报告。`;
   }
 
+  // 读取AI整合报告提示词模板
+  async readAIIntegrationPromptTemplate() {
+    try {
+      const fs = require('fs').promises;
+      const path = require('path');
+      const templatePath = path.join(__dirname, '..', 'templates', 'ai-integration-prompt.md');
+      const template = await fs.readFile(templatePath, 'utf8');
+      return template;
+    } catch (error) {
+      Logger.error('读取AI整合报告提示词模板失败:', error);
+      return this.getDefaultAIIntegrationPromptTemplate();
+    }
+  }
+
+  // 获取默认AI整合报告提示词模板
+  getDefaultAIIntegrationPromptTemplate() {
+    return `# AI整合复盘报告生成任务
+
+## 任务要求
+请根据以下多个复盘报告，生成一份AI整合复盘报告。
+
+## 报告基本信息
+- 复盘时间区间：{{dateRange}}
+- 周数：第{{weekNumber}}周
+- 被复盘人：{{userList}}
+- 报告数量：{{reportCount}}份
+
+## 原始报告内容
+{{#each reports}}
+### {{userName}}的复盘报告
+**时间区间：** {{dateRange}}
+**报告内容：**
+{{aiReport}}
+
+---
+{{/each}}
+
+## 整合报告要求
+
+### 1. 报告标题
+格式：{{startYear}}年{{startMonth}}月{{startDay}}日-{{endYear}}年{{endMonth}}月{{endDay}}日第{{weekNumber}}周复盘报告整合（AI版）
+
+### 2. 报告结构要求
+1. **报告基本信息表格**：包含复盘区间、周数、被复盘人列表
+2. **整体工作概况**：用表格形式总结本周整体工作情况
+3. **个人点评部分**：对每个被复盘人进行单独点评，包含：
+   - 当期工作饱和度评估
+   - 当期完成任务质量评价
+   - 下期可优化、增强的建议
+4. **团队协作分析**：分析团队协作情况
+5. **下周工作建议**：基于所有报告提出下周工作重点
+
+### 3. 格式要求
+- 多用表格展示数据
+- 内容精简但全面
+- 使用Markdown格式
+- 重点突出，层次分明
+
+### 4. 评价标准
+- 工作饱和度：高/中/低
+- 任务完成质量：优秀/良好/一般/需改进
+- 建议要具体可操作
+
+### 5. 特殊要求
+- 必须包含每个被复盘人的具体点评
+- 分析团队协作中的问题和改进建议
+- 提供可执行的下周工作计划
+- 使用emoji图标增强可读性（如📋、📊、👤、🤝、📌等）
+
+请根据以上要求生成一份专业的AI整合复盘报告。`;
+  }
+
   // 格式化用户数据
   formatUserData(reviewData) {
     try {
@@ -561,6 +633,81 @@ ${Object.entries(pageContext.otherFields || {}).map(([key, field]) =>
         if (this.switchToBackup()) {
           // 递归调用，使用备用LLM重试
           return this.generateReport(reviewData);
+        }
+      }
+      
+      // 如果备用LLM也失败，返回错误但不自动切换
+      if (this.useBackup) {
+        Logger.error('备用LLM也失败，返回错误', { error: error.message });
+        // 切换回主LLM，避免下次请求继续使用有问题的备用LLM
+        this.switchToPrimary();
+      }
+      
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  // 生成AI整合报告
+  async generateAIReport(prompt) {
+    try {
+      // 获取当前LLM配置
+      const llmConfig = this.getCurrentLLMConfig();
+      Logger.llmRequest(llmConfig.baseURL, llmConfig.model, prompt.length);
+      
+      // 添加调试信息
+      console.log('🔍 AI整合报告LLM请求配置:', {
+        baseURL: llmConfig.baseURL,
+        model: llmConfig.model,
+        apiKey: llmConfig.apiKey ? `${llmConfig.apiKey.substring(0, 10)}...` : 'undefined',
+        useBackup: this.useBackup,
+        disableBackup: this.disableBackup
+      });
+
+      const response = await axios({
+        method: 'POST',
+        url: `${llmConfig.baseURL}/chat/completions`,
+        headers: {
+          'Authorization': `Bearer ${llmConfig.apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        data: {
+          model: llmConfig.model,
+          messages: [
+            {
+              role: "system",
+              content: "你是一个专业的销售复盘分析师，擅长分析多个复盘报告并生成结构化的整合报告。"
+            },
+            {
+              role: "user",
+              content: prompt + "\n\n\\no_think"
+            }
+          ],
+          max_tokens: 6000,
+          temperature: 0.7
+        },
+        timeout: this.timeout
+      });
+
+      const content = response.data.choices[0].message.content;
+      Logger.llmResponse(content, content.length);
+
+      return {
+        success: true,
+        data: content
+      };
+
+    } catch (error) {
+      Logger.llmError(error);
+      
+      // 如果是主LLM失败且未使用备用LLM，尝试切换到备用LLM
+      if (!this.useBackup && this.backupBaseURL && !this.disableBackup) {
+        Logger.warning('主LLM请求失败，尝试切换到备用LLM', { error: error.message });
+        if (this.switchToBackup()) {
+          // 递归调用，使用备用LLM重试
+          return this.generateAIReport(prompt);
         }
       }
       

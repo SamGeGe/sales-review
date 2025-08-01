@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI整合报告测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .status.success { background-color: #d4edda; color: #155724; }
+        .status.error { background-color: #f8d7da; color: #721c24; }
+        .status.info { background-color: #d1ecf1; color: #0c5460; }
+        .content {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button.primary { background-color: #007bff; color: white; }
+        button.danger { background-color: #dc3545; color: white; }
+    </style>
+</head>
+<body>
+    <h1>AI整合报告功能测试</h1>
+    
+    <div class="test-section">
+        <h2>测试数据</h2>
+        <p>选择要测试的报告ID（用逗号分隔）：</p>
+        <input type="text" id="reportIds" value="1,2,3" style="width: 200px; padding: 5px;">
+        <br><br>
+        <button class="primary" onclick="testGenerateAIReport()">测试生成AI整合报告</button>
+        <button class="danger" onclick="clearResults()">清除结果</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>测试结果</h2>
+        <div id="status"></div>
+        <div id="content" class="content" style="display: none;"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:6091';
+        
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+        
+        function showContent(content) {
+            const contentDiv = document.getElementById('content');
+            contentDiv.textContent = content;
+            contentDiv.style.display = 'block';
+        }
+        
+        function clearResults() {
+            document.getElementById('status').innerHTML = '';
+            document.getElementById('content').style.display = 'none';
+        }
+        
+        async function testGenerateAIReport() {
+            const reportIdsInput = document.getElementById('reportIds').value;
+            const reportIds = reportIdsInput.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+            
+            if (reportIds.length === 0) {
+                showStatus('请输入有效的报告ID', 'error');
+                return;
+            }
+            
+            showStatus('开始测试AI整合报告生成...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/reports/generate-ai-report-stream`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        reportIds: reportIds,
+                        week_number: 30,
+                        date_range: '2025年7月21日-2025年7月27日'
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const reader = response.body.getReader();
+                let content = '';
+                let isComplete = false;
+                
+                while (!isComplete) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    const chunk = new TextDecoder().decode(value);
+                    const lines = chunk.split('\n');
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                
+                                switch (data.type) {
+                                    case 'start':
+                                        showStatus(data.message, 'info');
+                                        break;
+                                        
+                                    case 'status':
+                                        showStatus(data.message, 'info');
+                                        break;
+                                        
+                                    case 'content':
+                                        content = data.content;
+                                        showContent(content);
+                                        if (data.progress) {
+                                            showStatus(`正在生成报告内容... ${data.progress}%`, 'info');
+                                        }
+                                        break;
+                                        
+                                    case 'complete':
+                                        showStatus(`✅ ${data.message}`, 'success');
+                                        isComplete = true;
+                                        break;
+                                        
+                                    case 'error':
+                                        showStatus(`❌ 生成失败: ${data.error}`, 'error');
+                                        isComplete = true;
+                                        break;
+                                }
+                            } catch (error) {
+                                console.error('解析SSE数据失败:', error);
+                            }
+                        }
+                    }
+                }
+                
+            } catch (error) {
+                console.error('测试失败:', error);
+                showStatus(`❌ 测试失败: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html> 

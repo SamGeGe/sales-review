@@ -334,12 +334,19 @@ class MySQLService {
     const dayjs = require('dayjs');
     const startOfYear = dayjs('2025-01-01');
     const targetDate = dayjs(endDate);
+    
+    // 2025-01-01到01-05是第1周
     const daysDiff = targetDate.diff(startOfYear, 'day');
-    if (daysDiff < 5) {
-      return 1; // 第一周
-    } else {
-      return Math.floor((daysDiff - 5) / 7) + 2;
+    if (daysDiff <= 4) {
+      return 1;
     }
+    
+    // 从01-06开始，每周是周一到周日
+    // 计算从01-06开始的天数
+    const daysFromJan6 = daysDiff - 5;
+    const weekNumber = Math.floor(daysFromJan6 / 7) + 2;
+    
+    return weekNumber;
   }
 
   async createOrUpdateWeek(weekNumber, year, endDate) {
@@ -500,6 +507,91 @@ class MySQLService {
     if (this.pool) {
       await this.pool.end();
       Logger.info('MySQL连接池已关闭');
+    }
+  }
+
+  // 获取整合报告
+  async getIntegrationReport(weekId) {
+    try {
+      const [rows] = await this.pool.execute(
+        'SELECT * FROM ai_integration_reports WHERE week_id = ? ORDER BY created_at DESC LIMIT 1',
+        [weekId]
+      );
+      return rows[0] || null;
+    } catch (error) {
+      Logger.error('获取整合报告失败:', error);
+      throw error;
+    }
+  }
+
+  // 根据ID获取整合报告
+  async getIntegrationReportById(id) {
+    try {
+      const [rows] = await this.pool.execute(
+        'SELECT * FROM ai_integration_reports WHERE id = ?',
+        [id]
+      );
+      return rows[0] || null;
+    } catch (error) {
+      Logger.error('根据ID获取整合报告失败:', error);
+      throw error;
+    }
+  }
+
+  // 保存整合报告
+  async saveIntegrationReport(weekId, weekNumber, dateRange, userNames, reportContent, filePath = null) {
+    try {
+      const [result] = await this.pool.execute(
+        'INSERT INTO ai_integration_reports (week_id, week_number, date_range, user_names, report_content, file_path) VALUES (?, ?, ?, ?, ?, ?)',
+        [weekId, weekNumber, dateRange, userNames, reportContent, filePath]
+      );
+      Logger.info(`整合报告保存成功: id=${result.insertId}, weekId=${weekId}`);
+      return result.insertId;
+    } catch (error) {
+      Logger.error('保存整合报告失败:', error);
+      throw error;
+    }
+  }
+
+  // 锁定整合报告
+  async lockIntegrationReport(id) {
+    try {
+      await this.pool.execute(
+        'UPDATE ai_integration_reports SET is_locked = 1 WHERE id = ?',
+        [id]
+      );
+      Logger.info(`整合报告锁定成功: id=${id}`);
+    } catch (error) {
+      Logger.error('锁定整合报告失败:', error);
+      throw error;
+    }
+  }
+
+  // 解锁整合报告
+  async unlockIntegrationReport(id) {
+    try {
+      await this.pool.execute(
+        'UPDATE ai_integration_reports SET is_locked = 0 WHERE id = ?',
+        [id]
+      );
+      Logger.info(`整合报告解锁成功: id=${id}`);
+    } catch (error) {
+      Logger.error('解锁整合报告失败:', error);
+      throw error;
+    }
+  }
+
+  // 删除整合报告
+  async deleteIntegrationReport(id) {
+    try {
+      await this.pool.execute(
+        'DELETE FROM ai_integration_reports WHERE id = ?',
+        [id]
+      );
+      Logger.info(`整合报告删除成功: id=${id}`);
+    } catch (error) {
+      Logger.error('删除整合报告失败:', error);
+      throw error;
     }
   }
 }

@@ -337,15 +337,86 @@ class ApiService {
   }
 
   async deleteReviewReport(id: number): Promise<ApiResponse<any>> {
-    return this.request(`/api/reports/delete/${id}`, {
+    return this.request(`/api/reports/${id}`, {
       method: 'DELETE'
     });
   }
 
   async lockReviewReport(id: number): Promise<ApiResponse<any>> {
-    return this.request(`/api/reports/lock/${id}`, {
+    return this.request(`/api/reports/${id}/lock`, {
       method: 'PUT'
     });
+  }
+
+  async unlockReviewReport(id: number): Promise<ApiResponse<any>> {
+    return this.request(`/api/reports/${id}/unlock`, {
+      method: 'PUT'
+    });
+  }
+
+  // 获取周详情
+  async getWeekDetail(weekId: number): Promise<ApiResponse<any>> {
+    return this.request(`/api/weeks/${weekId}`);
+  }
+
+  // 获取整合报告
+  async getIntegrationReport(weekId: number): Promise<ApiResponse<any>> {
+    return this.request(`/api/reports/integration-report/${weekId}`);
+  }
+
+  // 保存整合报告
+  async saveIntegrationReport(data: {
+    weekId: number;
+    weekNumber: number;
+    dateRange: string;
+    userNames: string;
+    reportContent: string;
+    filePath?: string;
+  }): Promise<ApiResponse<any>> {
+    return this.request('/api/reports/integration-report/save', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  // 锁定整合报告
+  async lockIntegrationReport(id: number): Promise<ApiResponse<any>> {
+    return this.request(`/api/reports/integration-report/${id}/lock`, {
+      method: 'PUT'
+    });
+  }
+
+  // 解锁整合报告
+  async unlockIntegrationReport(id: number): Promise<ApiResponse<any>> {
+    return this.request(`/api/reports/integration-report/${id}/unlock`, {
+      method: 'PUT'
+    });
+  }
+
+  // 删除整合报告
+  async deleteIntegrationReport(id: number): Promise<ApiResponse<any>> {
+    return this.request(`/api/reports/integration-report/${id}`, {
+      method: 'DELETE'
+    });
+  }
+
+  // 下载整合报告
+  async downloadIntegrationReport(id: number, format: 'word' | 'pdf'): Promise<Blob> {
+    const response = await fetch(`${this.baseURL}/api/reports/integration-report/${id}/download/${format}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      mode: 'cors',
+      credentials: 'omit',
+      signal: AbortSignal.timeout(300000) // 5分钟超时
+    });
+
+    if (!response.ok) {
+      throw new Error(`下载失败: ${response.status} ${response.statusText}`);
+    }
+
+    return response.blob();
   }
 
   // 通用GET请求
