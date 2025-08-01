@@ -10,6 +10,8 @@
 - **用户管理** - 多用户支持和权限管理
 - **Docker容器化** - 一键部署，支持本地和服务器环境
 - **国内优化** - 针对国内服务器的镜像源和网络优化
+- **AI整合报告** - 支持多用户复盘数据的智能整合分析
+- **数据准确性保障** - 严格的数据约束，确保AI分析基于真实数据
 
 ## 📋 系统架构
 
@@ -31,6 +33,25 @@
     └── SSL证书支持
 ```
 
+## 🔧 最新更新
+
+### 依赖更新 (2025-01-01)
+- ✅ **并发运行支持** - 新增 `concurrently` 依赖，支持前后端服务并发启动
+- ✅ **MySQL数据库支持** - 新增 `mysql2` 依赖，提供完整的MySQL数据库支持
+- ✅ **Stagewise集成** - 新增 `@stagewise-plugins/react` 和 `@stagewise/toolbar-react` 依赖
+- ✅ **Markdown渲染** - 新增 `react-markdown` 和 `remark-gfm` 依赖，支持富文本内容渲染
+
+### AI整合报告优化 (2025-08-01)
+- ✅ **数据传递完整性** - 修复了AI整合报告生成时原始数据传递不完整的问题
+- ✅ **数据约束机制** - 添加了严格的数据约束条件，确保LLM只基于真实数据进行分析
+- ✅ **格式统一性** - 优化了复盘历史页面的AI报告显示格式，与复盘明细页面保持一致
+- ✅ **推测防范** - 防止LLM进行推测或虚构结论，提高报告准确性
+
+### 技术改进
+- **完整数据传递** - AI整合报告现在能够接收完整的原始复盘数据
+- **严格数据约束** - LLM只能基于用户实际填写的数据进行分析
+- **格式优化** - 统一的报告显示格式，提供更好的用户体验
+
 ## 🛠️ 快速开始
 
 ### 环境要求
@@ -43,29 +64,44 @@
 
 1. **克隆项目**
 ```bash
-   git clone https://github.com/your-username/sales-review.git
+git clone https://github.com/your-username/sales-review.git
 cd sales-review
 ```
 
-2. **运行设置脚本**
+2. **安装依赖**
 ```bash
-   chmod +x setup-after-clone.sh
-   ./setup-after-clone.sh
-   ```
+# 安装根目录依赖（包括concurrently）
+npm install
 
-3. **配置系统**
-   ```bash
-   # 编辑配置文件
-   nano conf.yaml
-   nano frontend/public/conf.yaml
-   ```
+# 安装前端依赖
+cd frontend && npm install && cd ..
 
-4. **启动开发环境**
-```bash
-   ./start-local.sh
+# 安装后端依赖
+cd backend && npm install && cd ..
+
+# 或者使用一键安装
+npm run install-all
 ```
 
-5. **访问应用**
+3. **运行设置脚本**
+```bash
+chmod +x setup-after-clone.sh
+./setup-after-clone.sh
+```
+
+4. **配置系统**
+```bash
+# 编辑配置文件
+nano conf.yaml
+nano frontend/public/conf.yaml
+```
+
+5. **启动开发环境**
+```bash
+./start-local.sh
+```
+
+6. **访问应用**
    - 前端: http://localhost:6090
    - 后端: http://localhost:6091
 
@@ -86,8 +122,17 @@ docker-compose up -d
 
 ```bash
 # 1. 安装依赖
-cd backend && npm install
-cd ../frontend && npm install
+# 安装根目录依赖
+npm install
+
+# 安装前端依赖
+cd frontend && npm install && cd ..
+
+# 安装后端依赖
+cd backend && npm install && cd ..
+
+# 或者使用一键安装
+npm run install-all
 
 # 2. 配置环境
 cp conf.yaml.example conf.yaml
@@ -207,6 +252,9 @@ mysqldump -u root -p sales_review > backup_$(date +%Y%m%d_%H%M%S).sql
 
 # 测试部署环境
 ./test-deployment.sh
+
+# 测试数据传递（新增）
+cd backend && node test-data-passing.js
 ```
 
 ## 🚨 故障排除
@@ -225,11 +273,17 @@ mysqldump -u root -p sales_review > backup_$(date +%Y%m%d_%H%M%S).sql
 
 2. **依赖安装失败**
    ```bash
-   # 清理缓存
+   # 清理npm缓存
    npm cache clean --force
    
    # 使用国内镜像
    npm config set registry https://registry.npmmirror.com
+   
+   # 重新安装依赖
+   npm run install-all
+   
+   # 如果Stagewise依赖安装失败
+   cd frontend && npm install @stagewise-plugins/react @stagewise/toolbar-react --registry=https://registry.npmmirror.com
    ```
 
 3. **Docker构建失败**
@@ -249,6 +303,15 @@ mysqldump -u root -p sales_review > backup_$(date +%Y%m%d_%H%M%S).sql
    # 从模板重新创建
    cp conf.yaml.example conf.yaml
 ```
+
+5. **AI整合报告数据为空**（新增）
+   ```bash
+   # 检查数据传递
+   cd backend && node test-data-passing.js
+   
+   # 检查数据库中的原始数据
+   sqlite3 data/sales_review.db "SELECT user_name, last_week_actions, week_plan FROM review_reports WHERE week_number = 31;"
+   ```
 
 ### 日志查看
 
@@ -328,10 +391,13 @@ query_cache_type = 1
 - 项目文档: [DEPLOYMENT.md](DEPLOYMENT.md)
 - 问题反馈: [GitHub Issues](https://github.com/your-username/sales-review/issues)
 - 功能建议: [GitHub Discussions](https://github.com/your-username/sales-review/discussions)
+- AI整合报告优化文档: [AI_INTEGRATION_REPORT_IMPROVEMENTS.md](AI_INTEGRATION_REPORT_IMPROVEMENTS.md)
 
 ---
 
 **快速链接**:
 - [部署详细指南](DEPLOYMENT.md)
 - [架构文档](ARCHITECTURE.md)
-- [网络配置](NETWORK_CONFIG.md) 
+- [网络配置](NETWORK_CONFIG.md)
+- [AI整合报告优化](AI_INTEGRATION_REPORT_IMPROVEMENTS.md)
+- [依赖更新文档](DEPENDENCIES_UPDATE.md) 
