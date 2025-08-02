@@ -330,6 +330,24 @@ async function buildAIReportContentStream(reports, weekNumber, dateRange, onChun
       hasAiReport: !!r.aiReport
     })), null, 2));
     
+    // 添加详细的数据传递日志
+    console.log('🔍 详细报告内容检查:');
+    allReports.forEach((report, index) => {
+      console.log(`🔍 报告 ${index + 1} - ${report.userName}:`);
+      console.log(`  - 原始数据: 上周计划(${report.lastWeekPlan.length}项), 行动回顾(${report.lastWeekActions.length}项), 本周计划(${report.weekPlan.length}项)`);
+      console.log(`  - 协调事项: ${report.coordinationItems ? '有' : '无'}`);
+      console.log(`  - 其他事项: ${report.otherItems ? '有' : '无'}`);
+      console.log(`  - AI报告: ${report.aiReport ? `有(${report.aiReport.length}字符)` : '无'}`);
+    });
+    
+    console.log('🔍 模板变量检查:');
+    console.log(`  - 日期范围: ${templateData.dateRange}`);
+    console.log(`  - 周数: ${templateData.weekNumber}`);
+    console.log(`  - 用户列表: ${templateData.userList}`);
+    console.log(`  - 报告数量: ${templateData.reportCount}`);
+    console.log(`  - 开始日期: ${templateData.startYear}-${templateData.startMonth}-${templateData.startDay}`);
+    console.log(`  - 结束日期: ${templateData.endYear}-${templateData.endMonth}-${templateData.endDay}`);
+    
     try {
       // 使用流式生成
       const result = await llmInstance.generateAIReportStream(prompt, onChunk);
@@ -438,6 +456,24 @@ async function buildAIReportContent(reports, weekNumber, dateRange) {
       hasOtherItems: !!r.otherItems,
       hasAiReport: !!r.aiReport
     })), null, 2));
+    
+    // 添加详细的数据传递日志
+    console.log('🔍 详细报告内容检查:');
+    allReports.forEach((report, index) => {
+      console.log(`🔍 报告 ${index + 1} - ${report.userName}:`);
+      console.log(`  - 原始数据: 上周计划(${report.lastWeekPlan.length}项), 行动回顾(${report.lastWeekActions.length}项), 本周计划(${report.weekPlan.length}项)`);
+      console.log(`  - 协调事项: ${report.coordinationItems ? '有' : '无'}`);
+      console.log(`  - 其他事项: ${report.otherItems ? '有' : '无'}`);
+      console.log(`  - AI报告: ${report.aiReport ? `有(${report.aiReport.length}字符)` : '无'}`);
+    });
+    
+    console.log('🔍 模板变量检查:');
+    console.log(`  - 日期范围: ${templateData.dateRange}`);
+    console.log(`  - 周数: ${templateData.weekNumber}`);
+    console.log(`  - 用户列表: ${templateData.userList}`);
+    console.log(`  - 报告数量: ${templateData.reportCount}`);
+    console.log(`  - 开始日期: ${templateData.startYear}-${templateData.startMonth}-${templateData.startDay}`);
+    console.log(`  - 结束日期: ${templateData.endYear}-${templateData.endMonth}-${templateData.endDay}`);
     
     try {
       const result = await llmInstance.generateAIReport(prompt);

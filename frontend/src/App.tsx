@@ -104,7 +104,7 @@ const MainLayout: React.FC = () => {
       </Content>
       
       <Footer className="app-footer">
-        © {new Date().getFullYear()} 营销中心周复盘系统
+        © {new Date().getFullYear() + ''} 营销中心周复盘系统
       </Footer>
 
       {/* 移动端抽屉菜单 */}

@@ -210,6 +210,7 @@ const History: React.FC = () => {
               value={new Date().getFullYear()} 
               prefix={<CalendarOutlined />}
               valueStyle={{ fontSize: isMobile ? '16px' : '20px' }}
+              formatter={(value) => value.toString()}
             />
           </Col>
           <Col xs={12} sm={6}>

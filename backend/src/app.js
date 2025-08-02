@@ -115,6 +115,11 @@ app.get('/api/weeks/:weekId', async (req, res) => {
     const { weekId } = req.params;
     Logger.apiRequest('GET', `/api/weeks/${weekId}`, req.query);
     
+    // 确保数据库服务已初始化
+    if (!databaseService.pool) {
+      await databaseService.initDatabase();
+    }
+    
     // 获取周详情
     const week = await databaseService.getWeekById(weekId);
     if (!week) {
@@ -134,28 +139,19 @@ app.get('/api/weeks/:weekId', async (req, res) => {
       year: week.year,
       date_range_start: week.start_date,
       date_range_end: week.end_date,
-      report_count: week.report_count,
-      created_at: week.created_at,
-      updated_at: week.updated_at
+      report_count: week.report_count
     };
     
     const formattedReports = reports.map(report => ({
       id: report.id,
       user_name: report.user_name,
       review_method: report.review_method,
-      last_week_plan: report.last_week_plan || [],
-      last_week_actions: report.last_week_actions || [],
-      week_plan: report.week_plan || [],
-      coordination_items: report.coordination_items || '',
-      other_items: report.other_items || '',
       created_at: report.created_at,
       date_range_start: report.date_range_start,
-      date_range_end: report.date_range_end,
-      ai_report: report.ai_report || ''
+      date_range_end: report.date_range_end
     }));
     
-    Logger.apiResponse(200, { week: formattedWeek, reports: formattedReports });
-    res.json({ 
+    res.json({
       success: true,
       data: {
         week: formattedWeek,

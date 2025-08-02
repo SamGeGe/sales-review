@@ -4,6 +4,33 @@ const Logger = require('../utils/logger');
 module.exports = (databaseService) => {
   const router = express.Router();
 
+  // 获取历史复盘数据
+  router.get('/history', async (req, res) => {
+    try {
+      Logger.apiRequest('GET', '/api/reviews/history', req.query);
+      
+      // 确保数据库服务已初始化
+      if (!databaseService.pool) {
+        await databaseService.initDatabase();
+      }
+      
+      const reports = await databaseService.getAllReviewReports();
+      
+      Logger.apiResponse(200, { count: reports.length, data: reports });
+      res.json({ 
+        success: true,
+        count: reports.length, 
+        data: reports 
+      });
+    } catch (error) {
+      Logger.error('获取历史复盘数据失败:', error);
+      res.status(500).json({ 
+        success: false,
+        error: '获取历史复盘数据失败' 
+      });
+    }
+  });
+
   // 获取所有周数
   router.get('/weeks', async (req, res) => {
     try {

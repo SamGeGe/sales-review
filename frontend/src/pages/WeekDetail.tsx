@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Card,
@@ -75,11 +75,34 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
   const [integrationReport, setIntegrationReport] = useState<IntegrationReport | null>(null);
   const [integrationLoading, setIntegrationLoading] = useState(false);
   const [isGeneratingAIReport, setIsGeneratingAIReport] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [deleteModalData, setDeleteModalData] = useState<{
+    reportId: number;
+    isBatch: boolean;
+    count?: number;
+    isIntegrationReport?: boolean;
+    mouseX?: number;
+    mouseY?: number;
+  } | null>(null);
 
+  // 监控按钮状态变化
+  useEffect(() => {
+    console.log('🔍 [前端] isGeneratingAIReport状态变化:', isGeneratingAIReport, new Date().toISOString());
+  }, [isGeneratingAIReport]);
+
+  // 强制更新按钮状态的函数
+  const forceUpdateButtonState = useCallback(() => {
+    console.log('🔍 [前端] 强制更新按钮状态函数被调用');
+    setIsGeneratingAIReport(false);
+  }, []);
+
+  // 获取周数据
   const fetchWeekData = async () => {
     try {
       setLoading(true);
+      
       const response = await apiService.getWeekDetail(parseInt(weekId!));
+      
       if (response.success) {
         setWeekData(response.data.week);
         setReports(response.data.reports);
@@ -97,14 +120,19 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
   const fetchIntegrationReport = async () => {
     try {
       setIntegrationLoading(true);
+      console.log('🔍 [前端] 开始获取整合报告，weekId:', weekId);
       const response = await apiService.getIntegrationReport(parseInt(weekId!));
-      if (response.success) {
+      console.log('🔍 [前端] 获取整合报告响应:', response);
+      
+      if (response.success && response.data) {
+        console.log('🔍 [前端] 设置整合报告数据:', response.data);
         setIntegrationReport(response.data);
       } else {
+        console.log('🔍 [前端] 没有找到整合报告，清空状态');
         setIntegrationReport(null);
       }
     } catch (error) {
-      console.error('获取整合报告失败:', error);
+      console.error('🔍 [前端] 获取整合报告失败:', error);
       setIntegrationReport(null);
     } finally {
       setIntegrationLoading(false);
@@ -291,10 +319,23 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
       // 显示加载状态
       const loadingKey = 'ai-report-loading';
       message.loading({
-        content: '正在生成AI整合报告...',
+        content: '正在准备生成AI整合报告...',
         key: loadingKey,
         duration: 0
       });
+      
+      // 先删除现有的整合报告（如果存在）
+      if (integrationReport) {
+        console.log('🔍 [前端] 删除现有整合报告，ID:', integrationReport.id);
+        try {
+          await apiService.deleteIntegrationReport(integrationReport.id);
+          console.log('🔍 [前端] 现有整合报告删除成功');
+          setIntegrationReport(null);
+        } catch (error) {
+          console.error('🔍 [前端] 删除现有整合报告失败:', error);
+          // 即使删除失败也继续生成新报告
+        }
+      }
       
       const weekNumber = weekData?.week_number;
       const startDate = dayjs(weekData?.date_range_start).format('YYYY年M月D日');
@@ -325,11 +366,11 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
       }
       
       let content = '';
+      let progressMessage = '';
       let isComplete = false;
-      let progressMessage = '正在生成AI整合报告...';
       
-      // 创建临时整合报告对象用于实时显示
-      const tempIntegrationReport = {
+      // 创建临时的整合报告对象
+      const tempIntegrationReport: IntegrationReport = {
         id: 0,
         week_id: parseInt(weekId!),
         week_number: weekNumber || 0,
@@ -354,15 +395,20 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
       
       while (!isComplete) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          console.log('🔍 [前端] 流式读取完成，done=true');
+          break;
+        }
         
         const chunk = new TextDecoder().decode(value);
+        console.log('🔍 [前端] 接收到原始chunk，长度:', chunk.length);
         const lines = chunk.split('\n');
         
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             try {
               const data = JSON.parse(line.slice(6));
+              console.log('🔍 [前端] 解析SSE数据:', data.type);
               
               switch (data.type) {
                 case 'start':
@@ -384,13 +430,19 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
                   break;
                   
                 case 'content':
-                  content = data.content;
+                  content += data.content; // 累积内容而不是覆盖
+                  
+                  console.log('🔍 [前端] 接收到内容块，长度:', data.content.length, '总长度:', content.length);
+                  
                   // 实时更新整合报告显示
-                  setIntegrationReport(prev => ({
-                    ...prev!,
-                    report_content: content,
-                    created_at: new Date().toISOString()
-                  }));
+                  setIntegrationReport(prev => {
+                    const updated = {
+                      ...prev!,
+                      report_content: content,
+                      created_at: new Date().toISOString()
+                    };
+                    return updated;
+                  });
                   
                   // 更新进度消息
                   if (data.progress) {
@@ -406,19 +458,43 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
                   break;
                   
                 case 'complete':
+                  console.log('🔍 [前端] 收到complete事件:', new Date().toISOString());
+                  console.log('🔍 [前端] 当前isGeneratingAIReport状态:', isGeneratingAIReport);
+                  
                   message.destroy(loadingKey);
                   message.success(data.message);
                   setSelectedReports([]);
                   
-                  // 刷新整合报告显示
-                  await fetchIntegrationReport();
+                  console.log('🔍 [前端] 即将设置isGeneratingAIReport为false');
+                  setIsGeneratingAIReport(false);
+                  console.log('🔍 [前端] 已设置isGeneratingAIReport为false');
+                  
+                  // 使用强制更新函数
+                  forceUpdateButtonState();
+                  
+                  // 额外确保状态更新
+                  setTimeout(() => {
+                    console.log('🔍 [前端] setTimeout中再次设置状态');
+                    setIsGeneratingAIReport(false);
+                    forceUpdateButtonState();
+                  }, 50);
+                  
+                  // 延迟刷新整合报告显示，确保数据库事务完成
+                  setTimeout(() => {
+                    console.log('🔍 [前端] 延迟刷新整合报告');
+                    fetchIntegrationReport().catch(error => {
+                      console.error('刷新整合报告失败:', error);
+                    });
+                  }, 1000);
                   
                   isComplete = true;
+                  console.log('🔍 [前端] 设置isComplete为true');
                   break;
                   
                 case 'error':
                   message.destroy(loadingKey);
                   message.error(`生成失败: ${data.error}`);
+                  setIsGeneratingAIReport(false);
                   isComplete = true;
                   break;
               }
@@ -433,57 +509,113 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
       console.error('AI整合报告生成失败:', error);
       message.error(`AI整合报告生成失败: ${error.message}`);
     } finally {
+      // 确保按钮状态被重置
+      console.log('🔍 [前端] finally块中强制重置按钮状态');
       setIsGeneratingAIReport(false);
+      forceUpdateButtonState();
+      
+      // 额外确保状态更新
+      setTimeout(() => {
+        console.log('🔍 [前端] setTimeout中再次强制重置按钮状态');
+        setIsGeneratingAIReport(false);
+        forceUpdateButtonState();
+      }, 100);
     }
   };
 
-  const handleDeleteReport = async (reportId: number) => {
-    Modal.confirm({
-      title: '确认删除',
-      content: '确定要删除这份复盘报告吗？此操作不可恢复。',
-      okText: '确认',
-      cancelText: '取消',
-      onOk: async () => {
-        try {
-          const response = await apiService.deleteReviewReport(reportId);
-          if (response.success) {
-            message.success('复盘报告删除成功');
-            fetchWeekData(); // 刷新数据
-          } else {
-            message.error('删除失败');
-          }
-        } catch (error) {
-          console.error('删除复盘报告失败:', error);
-          message.error('删除失败');
-        }
-      }
+  const handleDeleteReport = async (reportId: number, event?: React.MouseEvent) => {
+    // 获取鼠标位置
+    const mouseX = event?.clientX || window.innerWidth / 2;
+    const mouseY = event?.clientY || window.innerHeight / 2;
+    
+    // 设置删除模态框数据
+    setDeleteModalData({
+      reportId,
+      isBatch: false
     });
+    setDeleteModalVisible(true);
   };
 
-  const handleBatchDelete = async () => {
+  const handleBatchDelete = async (event?: React.MouseEvent) => {
     if (selectedReports.length === 0) {
       message.warning('请先选择要删除的复盘报告');
       return;
     }
 
-    Modal.confirm({
-      title: '确认批量删除',
-      content: `确定要删除选中的 ${selectedReports.length} 份复盘报告吗？此操作不可恢复。`,
-      okText: '确认',
-      cancelText: '取消',
-      onOk: async () => {
-        try {
-          const deletePromises = selectedReports.map(id => apiService.deleteReviewReport(id));
-          await Promise.all(deletePromises);
-          message.success('批量删除成功');
-          setSelectedReports([]);
-          fetchWeekData(); // 刷新数据
-        } catch (error) {
-          console.error('批量删除失败:', error);
-          message.error('批量删除失败');
+    // 设置删除模态框数据
+    setDeleteModalData({
+      reportId: 0,
+      isBatch: true,
+      count: selectedReports.length
+    });
+    setDeleteModalVisible(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteModalData) return;
+
+    console.log('🔍 [前端] 开始删除操作:', deleteModalData);
+
+    try {
+      if (deleteModalData.isIntegrationReport) {
+        // 删除AI整合报告
+        console.log('🔍 [前端] 删除AI整合报告，ID:', deleteModalData.reportId);
+        const response = await apiService.deleteIntegrationReport(deleteModalData.reportId);
+        console.log('🔍 [前端] 删除响应:', response);
+        
+        if (response.success) {
+          console.log('🔍 [前端] 删除成功，开始刷新数据');
+          message.success('AI整合报告删除成功');
+          
+          // 立即清空状态
+          setIntegrationReport(null);
+          
+          // 等待一小段时间确保数据库事务完成
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // 刷新整合报告列表
+          await fetchIntegrationReport();
+          // 强制刷新页面数据
+          await fetchWeekData();
+          console.log('🔍 [前端] 数据刷新完成');
+        } else {
+          message.error('删除失败: ' + (response.error || '未知错误'));
+        }
+      } else if (deleteModalData.isBatch) {
+        // 批量删除
+        console.log('🔍 [前端] 批量删除报告:', selectedReports);
+        const deletePromises = selectedReports.map(id => apiService.deleteReviewReport(id));
+        await Promise.all(deletePromises);
+        message.success('批量删除成功');
+        setSelectedReports([]);
+      } else {
+        // 单个删除
+        console.log('🔍 [前端] 删除单个报告，ID:', deleteModalData.reportId);
+        const response = await apiService.deleteReviewReport(deleteModalData.reportId);
+        console.log('🔍 [前端] 删除响应:', response);
+        
+        if (response.success) {
+          message.success('复盘报告删除成功');
+        } else {
+          message.error('删除失败: ' + (response.error || '未知错误'));
         }
       }
-    });
+      
+      // 刷新数据
+      await fetchWeekData();
+      
+      // 关闭模态框
+      setDeleteModalVisible(false);
+      setDeleteModalData(null);
+    } catch (error) {
+      console.error('🔍 [前端] 删除失败:', error);
+      message.error('删除失败: ' + (error instanceof Error ? error.message : '未知错误'));
+    }
+  };
+
+  const handleCancelDelete = () => {
+    setDeleteModalVisible(false);
+    setDeleteModalData(null);
   };
 
   const handleDownloadIntegrationReport = async (format: 'word' | 'pdf') => {
@@ -511,6 +643,24 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
       message.destroy();
       message.error(`下载失败: ${error.message}`);
     }
+  };
+
+  const handleDeleteIntegrationReport = async (event?: React.MouseEvent) => {
+    if (!integrationReport) return;
+
+    // 捕获鼠标位置
+    const mouseX = event?.clientX || window.innerWidth / 2;
+    const mouseY = event?.clientY || window.innerHeight / 2;
+
+    // 设置删除模态框数据
+    setDeleteModalData({
+      reportId: integrationReport.id,
+      isBatch: false,
+      isIntegrationReport: true,
+      mouseX: mouseX,
+      mouseY: mouseY
+    });
+    setDeleteModalVisible(true);
   };
 
   const columns = [
@@ -603,7 +753,7 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
               danger
               icon={<DeleteOutlined />}
               size="small"
-              onClick={() => handleDeleteReport(record.id)}
+              onClick={(e) => handleDeleteReport(record.id, e)}
             >
               删除
             </Button>
@@ -691,7 +841,7 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
               <Button
                 danger
                 icon={<DeleteOutlined />}
-                onClick={handleBatchDelete}
+                onClick={(e) => handleBatchDelete(e)}
               >
                 批量删除
               </Button>
@@ -744,17 +894,6 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
         >
           {integrationReport ? (
             <div>
-              <div style={{ marginBottom: 16 }}>
-                <Row gutter={16} align="middle">
-                  <Col span={24}>
-                    <Text strong>生成时间：</Text>
-                    {dayjs(integrationReport.created_at).format('YYYY-MM-DD HH:mm')}
-                  </Col>
-                </Row>
-              </div>
-
-
-
               <div style={{
                 border: '1px solid #d9d9d9',
                 borderRadius: '6px',
@@ -764,270 +903,83 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
                 overflow: 'auto'
               }}>
                 {integrationReport.report_content ? (
-                  <div style={{
-                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-                    color: '#2c3e50'
-                  }}>
-                    {isGeneratingAIReport && (
-                      <div style={{
-                        padding: '12px',
-                        marginBottom: '16px',
-                        backgroundColor: '#e6f7ff',
-                        border: '1px solid #91d5ff',
-                        borderRadius: '6px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                      }}>
-                        <div style={{
-                          width: '12px',
-                          height: '12px',
-                          borderRadius: '50%',
-                          backgroundColor: '#1890ff',
-                          animation: 'pulse 1.5s infinite'
-                        }} />
-                        <span style={{ color: '#1890ff', fontWeight: '500' }}>
-                          正在流式生成报告内容...
-                        </span>
-                      </div>
-                    )}
-                    
-                    {/* 调试信息 */}
-                    <details style={{ marginBottom: '16px', padding: '8px', backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
-                      <summary style={{ cursor: 'pointer', fontWeight: 'bold' }}>调试信息 - 原始Markdown内容</summary>
-                      <pre style={{ fontSize: '12px', overflow: 'auto', maxHeight: '200px', backgroundColor: '#fff', padding: '8px', border: '1px solid #ddd' }}>
-                        {integrationReport.report_content}
-                      </pre>
-                    </details>
-                    
-                    <ReactMarkdown
+                  <div>
+                    <ReactMarkdown 
                       remarkPlugins={[remarkGfm]}
+                      rehypePlugins={[]}
                       components={{
-                          // 表格样式优化
-                          table: ({node, ...props}) => (
-                            <table 
-                              {...props} 
-                              style={{
-                                borderCollapse: 'collapse',
-                                width: '100%',
-                                marginBottom: '24px',
-                                border: '2px solid #e8e8e8',
-                                borderRadius: '6px',
-                                overflow: 'hidden',
-                                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-                              }}
-                            />
-                          ),
-                          th: ({node, ...props}) => (
-                            <th 
-                              {...props} 
-                              style={{
-                                border: '1px solid #e8e8e8',
-                                padding: '16px 12px',
-                                backgroundColor: '#f8f9fa',
-                                fontWeight: '600',
-                                textAlign: 'left',
-                                fontSize: '14px',
-                                color: '#2c3e50',
-                                borderBottom: '2px solid #dee2e6'
-                              }}
-                            />
-                          ),
-                          td: ({node, ...props}) => (
-                            <td 
-                              {...props} 
-                              style={{
-                                border: '1px solid #e8e8e8',
-                                padding: '14px 12px',
-                                textAlign: 'left',
-                                fontSize: '14px',
-                                lineHeight: '1.6',
-                                verticalAlign: 'top'
-                              }}
-                            />
-                          ),
-                          // 标题样式优化
-                          h1: ({node, ...props}) => (
-                            <h1 {...props} style={{ 
-                              fontSize: '28px', 
-                              fontWeight: '700', 
-                              marginBottom: '20px', 
-                              marginTop: '32px',
-                              color: '#1a365d',
-                              borderBottom: '3px solid #3182ce',
-                              paddingBottom: '8px'
-                            }} />
-                          ),
-                          h2: ({node, ...props}) => (
-                            <h2 {...props} style={{ 
-                              fontSize: '22px', 
-                              fontWeight: '600', 
-                              marginBottom: '16px', 
-                              marginTop: '28px', 
-                              color: '#2d3748',
-                              borderLeft: '4px solid #3182ce',
-                              paddingLeft: '12px'
-                            }} />
-                          ),
-                          h3: ({node, ...props}) => (
-                            <h3 {...props} style={{ 
-                              fontSize: '18px', 
-                              fontWeight: '600', 
-                              marginBottom: '12px', 
-                              marginTop: '20px', 
-                              color: '#4a5568',
-                              backgroundColor: '#f7fafc',
-                              padding: '8px 12px',
-                              borderRadius: '4px'
-                            }} />
-                          ),
-                          // 段落样式优化
-                          p: ({node, ...props}) => (
-                            <p {...props} style={{ 
-                              marginBottom: '16px', 
-                              lineHeight: '1.8',
-                              fontSize: '15px',
-                              color: '#2d3748'
-                            }} />
-                          ),
-                          // 列表样式优化
-                          ul: ({node, ...props}) => (
-                            <ul {...props} style={{ 
-                              marginBottom: '20px', 
-                              paddingLeft: '24px',
-                              lineHeight: '1.8'
-                            }} />
-                          ),
-                          ol: ({node, ...props}) => (
-                            <ol {...props} style={{ 
-                              marginBottom: '20px', 
-                              paddingLeft: '24px',
-                              lineHeight: '1.8'
-                            }} />
-                          ),
-                          li: ({node, ...props}) => (
-                            <li {...props} style={{ 
-                              marginBottom: '8px',
-                              fontSize: '15px',
-                              color: '#2d3748'
-                            }} />
-                          ),
-                          // 强调文本样式优化
-                          strong: ({node, ...props}) => (
-                            <strong {...props} style={{ 
-                              fontWeight: '600', 
-                              color: '#3182ce',
-                              backgroundColor: '#ebf8ff',
-                              padding: '2px 4px',
-                              borderRadius: '3px'
-                            }} />
-                          ),
-                          em: ({node, ...props}) => (
-                            <em {...props} style={{ 
-                              fontStyle: 'italic', 
-                              color: '#718096',
-                              backgroundColor: '#f7fafc',
-                              padding: '1px 3px',
-                              borderRadius: '2px'
-                            }} />
-                          ),
-                          // 代码块样式优化
-                          code: ({node, className, ...props}: any) => {
-                            const isInline = className && !className.includes('language-');
-                            if (isInline) {
-                              return (
-                                <code {...props} style={{
-                                  backgroundColor: '#f1f5f9',
-                                  padding: '2px 6px',
-                                  borderRadius: '4px',
-                                  fontSize: '14px',
-                                  fontFamily: 'Monaco, Consolas, "Courier New", monospace',
-                                  color: '#e53e3e'
-                                }} />
-                              );
-                            }
+                        table: ({node, ...props}) => (
+                          <table style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '16px' }} {...props} />
+                        ),
+                        th: ({node, ...props}) => (
+                          <th style={{ border: '1px solid #d9d9d9', padding: '8px', backgroundColor: '#f5f5f5', textAlign: 'left' }} {...props} />
+                        ),
+                        td: ({node, ...props}) => (
+                          <td style={{ border: '1px solid #d9d9d9', padding: '8px' }} {...props} />
+                        ),
+                        // 处理HTML标签
+                        p: ({node, children, ...props}) => {
+                          // 检查children是否包含HTML标签
+                          const childrenArray = React.Children.toArray(children);
+                          const hasHtmlTags = childrenArray.some(child => 
+                            typeof child === 'string' && child.includes('<br>')
+                          );
+                          
+                          if (hasHtmlTags) {
+                            // 将children转换为字符串并处理HTML标签
+                            const content = childrenArray.join('');
+                            const parts = content.split('<br>');
                             return (
-                              <code {...props} style={{
-                                backgroundColor: '#f7fafc',
-                                padding: '16px',
-                                borderRadius: '6px',
-                                fontSize: '14px',
-                                fontFamily: 'Monaco, Consolas, "Courier New", monospace',
-                                color: '#2d3748',
-                                display: 'block',
-                                overflow: 'auto',
-                                border: '1px solid #e2e8f0'
-                              }} />
+                              <p {...props}>
+                                {parts.map((part, index) => (
+                                  <React.Fragment key={index}>
+                                    {part}
+                                    {index < parts.length - 1 && <br />}
+                                  </React.Fragment>
+                                ))}
+                              </p>
                             );
-                          },
-                          // 引用块样式优化
-                          blockquote: ({node, ...props}) => (
-                            <blockquote {...props} style={{
-                              borderLeft: '4px solid #3182ce',
-                              paddingLeft: '16px',
-                              margin: '20px 0',
-                              backgroundColor: '#f7fafc',
-                              padding: '16px',
-                              borderRadius: '4px',
-                              fontStyle: 'italic',
-                              color: '#4a5568'
-                            }} />
-                          ),
-                          // 分割线样式优化
-                          hr: ({node, ...props}) => (
-                            <hr {...props} style={{
-                              border: 'none',
-                              height: '2px',
-                              backgroundColor: '#e2e8f0',
-                              margin: '32px 0',
-                              borderRadius: '1px'
-                            }} />
-                          ),
-                          // 链接样式优化
-                          a: ({node, ...props}) => (
-                            <a {...props} style={{
-                              color: '#3182ce',
-                              textDecoration: 'none',
-                              borderBottom: '1px solid #3182ce',
-                              paddingBottom: '1px'
-                            }} />
-                          )
-                        }}
-                      >
-                        {integrationReport.report_content}
-                      </ReactMarkdown>
-                      
-                      {/* 操作按钮 - 移到报告内容下方 */}
-                      <div style={{ marginTop: 24, padding: 16, backgroundColor: '#f8f9fa', borderRadius: 8, border: '1px solid #e9ecef' }}>
-                        <Text strong style={{ display: 'block', marginBottom: '12px', color: '#495057' }}>
-                          报告操作
-                        </Text>
-                        <Space wrap>
-                          <Button
-                            icon={<FileWordOutlined />}
-                            onClick={() => handleDownloadIntegrationReport('word')}
-                            disabled={isGeneratingAIReport || !integrationReport}
-                          >
-                            下载Word
-                          </Button>
-                          <Button
-                            icon={<FilePdfOutlined />}
-                            onClick={() => handleDownloadIntegrationReport('pdf')}
-                            disabled={isGeneratingAIReport || !integrationReport}
-                          >
-                            下载PDF
-                          </Button>
-                        </Space>
-                      </div>
-                    </div>
-                ) : (
-                  <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
-                    <RobotOutlined style={{ fontSize: '48px', marginBottom: '16px' }} />
-                    <div>报告内容为空</div>
-                    <div style={{ marginTop: '8px', fontSize: '12px' }}>
-                      请重新生成AI整合报告
+                          }
+                          return <p {...props}>{children}</p>;
+                        }
+                      }}
+                    >
+                      {integrationReport.report_content.replace(/<br>/g, '\n')}
+                    </ReactMarkdown>
+                    
+                    {/* 操作按钮 - 移到报告内容下方 */}
+                    <div style={{ marginTop: 24, padding: 16, backgroundColor: '#f8f9fa', borderRadius: 8, border: '1px solid #e9ecef' }}>
+                      <Text strong style={{ display: 'block', marginBottom: '12px', color: '#495057' }}>
+                        报告操作
+                      </Text>
+                      <Space wrap>
+                        <Button
+                          icon={<FileWordOutlined />}
+                          onClick={() => handleDownloadIntegrationReport('word')}
+                          disabled={isGeneratingAIReport || !integrationReport}
+                        >
+                          下载Word
+                        </Button>
+                        <Button
+                          icon={<FilePdfOutlined />}
+                          onClick={() => handleDownloadIntegrationReport('pdf')}
+                          disabled={isGeneratingAIReport || !integrationReport}
+                        >
+                          下载PDF
+                        </Button>
+                        <Button
+                          danger
+                          icon={<DeleteOutlined />}
+                          onClick={(event) => handleDeleteIntegrationReport(event)}
+                          disabled={isGeneratingAIReport || !integrationReport}
+                        >
+                          删除报告
+                        </Button>
+                      </Space>
                     </div>
                   </div>
+                ) : (
+                  <div>暂无整合报告内容</div>
                 )}
               </div>
             </div>
@@ -1042,6 +994,69 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
           )}
         </Card>
       </Card>
+
+      {/* 自定义删除确认对话框 */}
+      <Modal
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ color: '#ff4d4f', fontSize: '16px' }}>⚠️</span>
+            <span style={{ fontWeight: 'bold', color: '#262626' }}>确认删除</span>
+          </div>
+        }
+        visible={deleteModalVisible}
+        onOk={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+        okText="确认删除"
+        cancelText="取消"
+        okButtonProps={{
+          danger: true,
+          style: { 
+            borderRadius: '6px',
+            fontWeight: '500'
+          }
+        }}
+        cancelButtonProps={{
+          style: { 
+            borderRadius: '6px',
+            borderColor: '#d9d9d9'
+          }
+        }}
+        centered={false}
+        width={400}
+        style={{
+          top: deleteModalData?.mouseY ? Math.max(20, deleteModalData.mouseY - 150) : Math.max(20, window.innerHeight / 2 - 150),
+          left: deleteModalData?.mouseX ? Math.max(20, Math.min(deleteModalData.mouseX - 200, window.innerWidth - 420)) : Math.max(20, window.innerWidth / 2 - 200)
+        }}
+      >
+        {deleteModalData?.isBatch ? (
+          <div style={{ padding: '8px 0' }}>
+            <p style={{ margin: '0 0 8px 0', color: '#595959' }}>
+              确定要删除选中的 <strong style={{ color: '#ff4d4f' }}>{deleteModalData.count}</strong> 份复盘报告吗？
+            </p>
+            <p style={{ margin: 0, color: '#8c8c8c', fontSize: '13px' }}>
+              此操作不可恢复，请谨慎操作。
+            </p>
+          </div>
+        ) : deleteModalData?.isIntegrationReport ? (
+          <div style={{ padding: '8px 0' }}>
+            <p style={{ margin: '0 0 8px 0', color: '#595959' }}>
+              确定要删除这份 <strong style={{ color: '#ff4d4f' }}>AI整合报告</strong> 吗？
+            </p>
+            <p style={{ margin: 0, color: '#8c8c8c', fontSize: '13px' }}>
+              此操作不可恢复，请谨慎操作。
+            </p>
+          </div>
+        ) : (
+          <div style={{ padding: '8px 0' }}>
+            <p style={{ margin: '0 0 8px 0', color: '#595959' }}>
+              确定要删除这份复盘报告吗？
+            </p>
+            <p style={{ margin: 0, color: '#8c8c8c', fontSize: '13px' }}>
+              此操作不可恢复，请谨慎操作。
+            </p>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

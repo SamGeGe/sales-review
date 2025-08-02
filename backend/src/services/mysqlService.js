@@ -122,7 +122,7 @@ class MySQLService {
 
   async insertDefaultUsers() {
     try {
-      const defaultUsers = ['张三', '李四', '王五', '赵六'];
+      const defaultUsers = ['张三', '李四'];
       
       for (const userName of defaultUsers) {
         try {
@@ -485,8 +485,24 @@ class MySQLService {
 
   async getWeekById(weekId) {
     try {
-      const [rows] = await this.pool.execute('SELECT * FROM weeks WHERE id = ?', [weekId]);
-      return rows[0] || null;
+      // 获取周信息
+      const [weekRows] = await this.pool.execute('SELECT * FROM weeks WHERE id = ?', [weekId]);
+      const week = weekRows[0] || null;
+      
+      if (!week) {
+        return null;
+      }
+      
+      // 实时计算报告数量
+      const [reportRows] = await this.pool.execute(
+        'SELECT COUNT(*) as report_count FROM review_reports WHERE week_id = ?',
+        [weekId]
+      );
+      
+      // 更新周信息中的报告数量
+      week.report_count = reportRows[0].report_count;
+      
+      return week;
     } catch (error) {
       Logger.error('根据ID获取周数失败:', error);
       throw error;

@@ -23,9 +23,24 @@ async function initDatabase() {
     const initSqlPath = path.join(__dirname, 'init.sql');
     const initSql = fs.readFileSync(initSqlPath, 'utf8');
 
-    // 执行 SQL 脚本
+    // 分割SQL语句并分别执行
     console.log('📝 执行数据库初始化脚本...');
-    await connection.execute(initSql);
+    const statements = initSql
+      .split(';')
+      .map(stmt => stmt.trim())
+      .filter(stmt => stmt.length > 0 && !stmt.startsWith('--'));
+
+    for (const statement of statements) {
+      if (statement.trim()) {
+        try {
+          await connection.execute(statement);
+          console.log(`✅ 执行SQL语句: ${statement.substring(0, 50)}...`);
+        } catch (error) {
+          console.error(`❌ 执行SQL语句失败: ${statement.substring(0, 50)}...`, error.message);
+          throw error;
+        }
+      }
+    }
     
     console.log('✅ 数据库初始化完成！');
     console.log('📊 数据库: sales_review');

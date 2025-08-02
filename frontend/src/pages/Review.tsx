@@ -154,8 +154,8 @@ const Review: React.FC = () => {
     // 设置日期范围
     setDateRange([dayjs('2025-07-21'), dayjs('2025-07-27')]);
     
-    // 设置用户（熊维豪的ID是5）
-    setSelectedUser(5);
+    // 设置用户（李四的ID是2）
+    setSelectedUser(2);
     
     // 设置复盘方式
     setReviewMethod('offline');
@@ -403,6 +403,7 @@ const Review: React.FC = () => {
     
     if (dateRange && selectedUser) {
       // 查找对应的历史复盘数据
+      // 使用更灵活的日期匹配逻辑，允许±1天的误差
       const previousWeekStart = dateRange[0].subtract(7, 'day');
       const previousWeekEnd = dateRange[1].subtract(7, 'day');
       
@@ -420,8 +421,20 @@ const Review: React.FC = () => {
           // 查找匹配的历史复盘数据
           const matchingReview = historicalData.find((review: any) => {
             const userMatch = review.user_id === selectedUser;
-            const startMatch = review.date_range_start === previousWeekStart.format('YYYY-MM-DD');
-            const endMatch = review.date_range_end === previousWeekEnd.format('YYYY-MM-DD');
+            
+            // 处理日期格式，支持ISO日期格式
+            const reviewStartDate = review.date_range_start ? review.date_range_start.split('T')[0] : '';
+            const reviewEndDate = review.date_range_end ? review.date_range_end.split('T')[0] : '';
+            const expectedStartDate = previousWeekStart.format('YYYY-MM-DD');
+            const expectedEndDate = previousWeekEnd.format('YYYY-MM-DD');
+            
+            // 使用更灵活的日期匹配，允许±1天的误差
+            const startDateDiff = Math.abs(new Date(reviewStartDate).getTime() - new Date(expectedStartDate).getTime());
+            const endDateDiff = Math.abs(new Date(reviewEndDate).getTime() - new Date(expectedEndDate).getTime());
+            const oneDayInMs = 24 * 60 * 60 * 1000;
+            
+            const startMatch = startDateDiff <= oneDayInMs;
+            const endMatch = endDateDiff <= oneDayInMs;
             
             console.log('检查历史记录:', {
               reviewId: review.id,
@@ -430,10 +443,12 @@ const Review: React.FC = () => {
               userMatch,
               startMatch,
               endMatch,
-              reviewStart: review.date_range_start,
-              reviewEnd: review.date_range_end,
-              expectedStart: previousWeekStart.format('YYYY-MM-DD'),
-              expectedEnd: previousWeekEnd.format('YYYY-MM-DD')
+              reviewStart: reviewStartDate,
+              reviewEnd: reviewEndDate,
+              expectedStart: expectedStartDate,
+              expectedEnd: expectedEndDate,
+              startDateDiff: Math.round(startDateDiff / oneDayInMs),
+              endDateDiff: Math.round(endDateDiff / oneDayInMs)
             });
             
             return userMatch && startMatch && endMatch;

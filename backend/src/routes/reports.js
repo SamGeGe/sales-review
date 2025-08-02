@@ -483,6 +483,19 @@ module.exports = (databaseService, llmService, reportExportService) => {
         const weekId = reports[0].week_id;
         const userNames = Array.from(users).join('、');
 
+        // 先删除该周现有的整合报告
+        res.write(`data: ${JSON.stringify({ type: 'status', message: '正在清理现有整合报告...' })}\n\n`);
+        try {
+          const existingReport = await databaseService.getIntegrationReport(weekId);
+          if (existingReport) {
+            await databaseService.deleteIntegrationReport(existingReport.id);
+            console.log('🔍 [后端] 删除现有整合报告，ID:', existingReport.id);
+          }
+        } catch (error) {
+          console.error('🔍 [后端] 删除现有整合报告失败:', error);
+          // 即使删除失败也继续生成新报告
+        }
+
         res.write(`data: ${JSON.stringify({ type: 'status', message: `已收集 ${reports.length} 份报告，开始生成整合内容...` })}\n\n`);
 
         // 生成AI整合报告内容（流式）
@@ -529,17 +542,21 @@ module.exports = (databaseService, llmService, reportExportService) => {
         res.write(`data: ${JSON.stringify({ type: 'status', message: '正在保存到数据库...' })}\n\n`);
         
         // 保存到数据库
+        console.log('🔍 [后端] 开始保存到数据库:', new Date().toISOString());
         const reportId = await databaseService.saveIntegrationReport(
           weekId, week_number, date_range, userNames, aiReportContent, fileNameWithPath
         );
+        console.log('🔍 [后端] 数据库保存完成，reportId:', reportId, new Date().toISOString());
 
         // 发送完成事件
+        console.log('🔍 [后端] 即将发送complete事件:', new Date().toISOString());
         res.write(`data: ${JSON.stringify({ 
           type: 'complete', 
           message: 'AI整合报告生成完成',
           reportId: reportId,
           fileName: fileNameWithPath
         })}\n\n`);
+        console.log('🔍 [后端] complete事件已发送:', new Date().toISOString());
 
       } catch (error) {
         // 发送错误事件
@@ -571,7 +588,7 @@ module.exports = (databaseService, llmService, reportExportService) => {
       const integrationReport = await databaseService.getIntegrationReport(weekId);
       
       if (!integrationReport) {
-        return res.status(404).json({
+        return res.json({
           success: false,
           error: '未找到整合报告'
         });
@@ -597,14 +614,15 @@ module.exports = (databaseService, llmService, reportExportService) => {
       
       Logger.apiRequest('POST', '/api/reports/integration-report', req.body);
       
-      const result = await databaseService.saveIntegrationReport({
+      // 保存到数据库
+      const result = await databaseService.saveIntegrationReport(
         weekId,
         weekNumber,
         dateRange,
         userNames,
         reportContent,
         filePath
-      });
+      );
       
       res.json({ success: true, data: result });
     } catch (error) {

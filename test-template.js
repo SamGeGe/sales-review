@@ -15,18 +15,18 @@ async function testTemplate() {
     const testData = {
       dateRange: '2025年7月28日-2025年8月3日',
       weekNumber: 31,
-      userList: '赵六、熊维豪',
+      userList: '张三、李四',
       reportCount: 2,
       reports: [
         {
-          userName: '赵六',
+          userName: '张三',
           dateRange: '2025-07-28 至 2025-08-03',
-          aiReport: '这是赵六的AI报告内容...'
+          aiReport: '这是张三的AI报告内容...'
         },
         {
-          userName: '熊维豪',
+          userName: '李四',
           dateRange: '2025-07-28 至 2025-08-03',
-          aiReport: '这是熊维豪的AI报告内容...'
+          aiReport: '这是李四的AI报告内容...'
         }
       ],
       startYear: '2025',

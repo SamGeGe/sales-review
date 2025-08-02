@@ -139,9 +139,7 @@ class DatabaseService {
   insertDefaultUsers() {
     const defaultUsers = [
       { name: '张三' },
-      { name: '李四' },
-      { name: '王五' },
-      { name: '赵六' }
+      { name: '李四' }
     ];
 
     defaultUsers.forEach(user => {
