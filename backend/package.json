@@ -6,6 +6,12 @@
   "scripts": {
     "start": "node scripts/start-with-config.js",
     "dev": "nodemon scripts/start-with-config.js",
+    "init-db": "node init-database.js",
+    "test-db": "node test-database-fix.js",
+    "test-dayjs": "node test-dayjs-fix.js",
+    "test-report": "node test-report-detail.js",
+    "test-streaming": "node test-streaming-fix.js",
+    "test-streaming-real": "node test-streaming-real.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {

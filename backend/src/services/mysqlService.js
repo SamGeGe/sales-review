@@ -1,4 +1,5 @@
 const mysql = require('mysql2/promise');
+const dayjs = require('dayjs');
 const Logger = require('../utils/logger');
 
 class MySQLService {
@@ -64,8 +65,6 @@ class MySQLService {
           start_date DATE NOT NULL,
           end_date DATE NOT NULL,
           report_count INT DEFAULT 0,
-          locked_count INT DEFAULT 0,
-          unlocked_count INT DEFAULT 0,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
           UNIQUE KEY unique_week_year (week_number, year)
@@ -89,11 +88,28 @@ class MySQLService {
           ai_report LONGTEXT,
           week_id INT,
           week_number INT,
-          is_locked BOOLEAN DEFAULT FALSE,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
           FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
           FOREIGN KEY (week_id) REFERENCES weeks(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+
+      // 创建整合报告表
+      await this.pool.execute(`
+        CREATE TABLE IF NOT EXISTS ai_integration_reports (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          week_id INT NOT NULL,
+          week_number INT NOT NULL,
+          date_range VARCHAR(100) NOT NULL,
+          user_names TEXT NOT NULL,
+          report_content LONGTEXT NOT NULL,
+          file_path VARCHAR(255),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          FOREIGN KEY (week_id) REFERENCES weeks(id) ON DELETE CASCADE,
+          INDEX idx_week_id (week_id),
+          INDEX idx_week_number (week_number)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
       `);
 
@@ -166,8 +182,7 @@ class MySQLService {
           other_items: '本周重点推进客户A项目',
           ai_report: '模拟AI生成的复盘报告内容...',
           week_id: week.id,
-          week_number: weekNumber,
-          is_locked: false
+          week_number: weekNumber
         }
       ];
 
@@ -176,13 +191,13 @@ class MySQLService {
           INSERT INTO review_reports 
           (user_id, user_name, date_range_start, date_range_end, review_method,
            last_week_plan, last_week_actions, week_plan, coordination_items, other_items,
-           ai_report, week_id, week_number, is_locked)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ai_report, week_id, week_number)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           data.user_id, data.user_name, data.date_range_start, data.date_range_end,
           data.review_method, data.last_week_plan, data.last_week_actions, data.week_plan,
           data.coordination_items, data.other_items, data.ai_report, data.week_id,
-          data.week_number, data.is_locked
+          data.week_number
         ]);
       }
 
@@ -331,7 +346,6 @@ class MySQLService {
   }
 
   calculateWeekNumber(endDate) {
-    const dayjs = require('dayjs');
     const startOfYear = dayjs('2025-01-01');
     const targetDate = dayjs(endDate);
     
@@ -378,21 +392,19 @@ class MySQLService {
   async updateWeekStatistics(weekId) {
     try {
       const [reports] = await this.pool.execute(
-        'SELECT COUNT(*) as total, SUM(CASE WHEN is_locked = 1 THEN 1 ELSE 0 END) as locked FROM review_reports WHERE week_id = ?',
+        'SELECT COUNT(*) as total FROM review_reports WHERE week_id = ?',
         [weekId]
       );
 
       const total = reports[0].total || 0;
-      const locked = reports[0].locked || 0;
-      const unlocked = total - locked;
 
       await this.pool.execute(`
         UPDATE weeks 
-        SET report_count = ?, locked_count = ?, unlocked_count = ?
+        SET report_count = ?
         WHERE id = ?
-      `, [total, locked, unlocked, weekId]);
+      `, [total, weekId]);
 
-      Logger.info(`周数统计更新完成: weekId=${weekId}, total=${total}, locked=${locked}, unlocked=${unlocked}`);
+      Logger.info(`周数统计更新完成: weekId=${weekId}, total=${total}`);
     } catch (error) {
       Logger.error('更新周数统计失败:', error);
     }
@@ -431,29 +443,9 @@ class MySQLService {
   async deleteReviewReport(id) {
     try {
       await this.pool.execute('DELETE FROM review_reports WHERE id = ?', [id]);
-      return { success: true };
+      Logger.info(`复盘报告删除成功: id=${id}`);
     } catch (error) {
       Logger.error('删除复盘报告失败:', error);
-      throw error;
-    }
-  }
-
-  async lockReviewReport(id) {
-    try {
-      await this.pool.execute('UPDATE review_reports SET is_locked = TRUE WHERE id = ?', [id]);
-      return { success: true };
-    } catch (error) {
-      Logger.error('锁定复盘报告失败:', error);
-      throw error;
-    }
-  }
-
-  async unlockReviewReport(id) {
-    try {
-      await this.pool.execute('UPDATE review_reports SET is_locked = FALSE WHERE id = ?', [id]);
-      return { success: true };
-    } catch (error) {
-      Logger.error('解锁复盘报告失败:', error);
       throw error;
     }
   }
@@ -462,9 +454,7 @@ class MySQLService {
     try {
       const [rows] = await this.pool.execute(`
         SELECT w.*, 
-               COUNT(rr.id) as report_count,
-               SUM(CASE WHEN rr.is_locked = 1 THEN 1 ELSE 0 END) as locked_count,
-               SUM(CASE WHEN rr.is_locked = 0 THEN 1 ELSE 0 END) as unlocked_count
+               COUNT(rr.id) as report_count
         FROM weeks w
         LEFT JOIN review_reports rr ON w.id = rr.week_id
         GROUP BY w.id
@@ -549,34 +539,6 @@ class MySQLService {
       return result.insertId;
     } catch (error) {
       Logger.error('保存整合报告失败:', error);
-      throw error;
-    }
-  }
-
-  // 锁定整合报告
-  async lockIntegrationReport(id) {
-    try {
-      await this.pool.execute(
-        'UPDATE ai_integration_reports SET is_locked = 1 WHERE id = ?',
-        [id]
-      );
-      Logger.info(`整合报告锁定成功: id=${id}`);
-    } catch (error) {
-      Logger.error('锁定整合报告失败:', error);
-      throw error;
-    }
-  }
-
-  // 解锁整合报告
-  async unlockIntegrationReport(id) {
-    try {
-      await this.pool.execute(
-        'UPDATE ai_integration_reports SET is_locked = 0 WHERE id = ?',
-        [id]
-      );
-      Logger.info(`整合报告解锁成功: id=${id}`);
-    } catch (error) {
-      Logger.error('解锁整合报告失败:', error);
       throw error;
     }
   }

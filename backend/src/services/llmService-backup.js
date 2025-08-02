@@ -619,47 +619,42 @@ ${Object.entries(pageContext.otherFields || {}).map(([key, field]) =>
       });
 
       let fullContent = '';
-      let isComplete = false;
-
-      return new Promise((resolve, reject) => {
-        // 处理流式响应
-        response.data.on('data', (chunk) => {
-          const lines = chunk.toString().split('\n');
-          
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6);
-              
-              if (data === '[DONE]') {
-                Logger.llmResponse(fullContent, fullContent.length);
-                isComplete = true;
-                resolve(fullContent);
-                return;
-              }
-              
-              try {
-                const parsed = JSON.parse(data);
-                if (parsed.choices && parsed.choices[0] && parsed.choices[0].delta && parsed.choices[0].delta.content) {
-                  const content = parsed.choices[0].delta.content;
-                  fullContent += content;
-                  
-                  // 调用回调函数发送内容块
-                  if (onChunk) {
-                    onChunk(content);
-                  }
+      
+      // 处理流式响应
+      response.data.on('data', (chunk) => {
+        const lines = chunk.toString().split('\n');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            
+            if (data === '[DONE]') {
+              Logger.llmResponse(fullContent, fullContent.length);
+              return;
+            }
+            
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.choices && parsed.choices[0] && parsed.choices[0].delta && parsed.choices[0].delta.content) {
+                const content = parsed.choices[0].delta.content;
+                fullContent += content;
+                
+                // 调用回调函数发送内容块
+                if (onChunk) {
+                  onChunk(content);
                 }
-              } catch (error) {
-                // 忽略解析错误
               }
+            } catch (error) {
+              // 忽略解析错误
             }
           }
-        });
-        
+        }
+      });
+
+      return new Promise((resolve, reject) => {
         response.data.on('end', () => {
-          if (!isComplete) {
-            Logger.llmResponse(fullContent, fullContent.length);
-            resolve(fullContent);
-          }
+          Logger.llmResponse(fullContent, fullContent.length);
+          resolve(fullContent);
         });
         
         response.data.on('error', (error) => {
@@ -840,47 +835,42 @@ ${Object.entries(pageContext.otherFields || {}).map(([key, field]) =>
       });
 
       let fullContent = '';
-      let isComplete = false;
-
-      return new Promise((resolve, reject) => {
-        // 处理流式响应
-        response.data.on('data', (chunk) => {
-          const lines = chunk.toString().split('\n');
-          
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6);
-              
-              if (data === '[DONE]') {
-                Logger.llmResponse(fullContent, fullContent.length);
-                isComplete = true;
-                resolve(fullContent);
-                return;
-              }
-              
-              try {
-                const parsed = JSON.parse(data);
-                if (parsed.choices && parsed.choices[0] && parsed.choices[0].delta && parsed.choices[0].delta.content) {
-                  const content = parsed.choices[0].delta.content;
-                  fullContent += content;
-                  
-                  // 调用回调函数发送内容块
-                  if (onChunk) {
-                    onChunk(content);
-                  }
+      
+      // 处理流式响应
+      response.data.on('data', (chunk) => {
+        const lines = chunk.toString().split('\n');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            
+            if (data === '[DONE]') {
+              Logger.llmResponse(fullContent, fullContent.length);
+              return;
+            }
+            
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.choices && parsed.choices[0] && parsed.choices[0].delta && parsed.choices[0].delta.content) {
+                const content = parsed.choices[0].delta.content;
+                fullContent += content;
+                
+                // 调用回调函数发送内容块
+                if (onChunk) {
+                  onChunk(content);
                 }
-              } catch (error) {
-                // 忽略解析错误
               }
+            } catch (error) {
+              // 忽略解析错误
             }
           }
-        });
-        
+        }
+      });
+
+      return new Promise((resolve, reject) => {
         response.data.on('end', () => {
-          if (!isComplete) {
-            Logger.llmResponse(fullContent, fullContent.length);
-            resolve(fullContent);
-          }
+          Logger.llmResponse(fullContent, fullContent.length);
+          resolve(fullContent);
         });
         
         response.data.on('error', (error) => {

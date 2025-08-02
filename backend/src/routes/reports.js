@@ -114,43 +114,34 @@ module.exports = (databaseService, llmService, reportExportService) => {
         timestamp: new Date().toISOString()
       })}\n\n`);
 
-      // 调用LLM服务生成报告
-      const result = await llmService.generateReport(reviewData);
+      // 调用LLM服务生成报告（流式）
+      let aiReport = '';
+      let hasError = false;
       
-      // 检查生成结果
-      if (!result.success) {
-        throw new Error(result.error || 'AI报告生成失败');
+      try {
+        // 格式化用户数据
+        const formattedData = llmService.formatUserData(reviewData);
+        
+        // 使用流式生成
+        aiReport = await llmService.generateReportStream(formattedData, (chunk) => {
+          // 发送内容块
+          res.write(`data: ${JSON.stringify({
+            type: 'content',
+            content: chunk,
+            timestamp: new Date().toISOString()
+          })}\n\n`);
+        });
+        
+      } catch (error) {
+        Logger.error('LLM流式生成失败:', error);
+        hasError = true;
+        throw new Error(error.message || 'AI报告生成失败');
       }
       
-      const aiReport = result.data;
-      
-      // 发送开始生成状态
-      res.write(`data: ${JSON.stringify({
-        type: 'status',
-        message: '开始生成报告内容...',
-        progress: 20,
-        timestamp: new Date().toISOString()
-      })}\n\n`);
-
-      // 模拟流式发送报告内容（分段发送）
-      const chunks = splitReportIntoChunks(aiReport, 100); // 每100字符一段，更小的块
-      
-      for (let i = 0; i < chunks.length; i++) {
-        const chunk = chunks[i];
-        const progress = 20 + Math.floor((i / chunks.length) * 70); // 20-90%进度
-        
-        // 发送内容块
-        res.write(`data: ${JSON.stringify({
-          type: 'content',
-          content: chunk,
-          progress: progress,
-          timestamp: new Date().toISOString()
-        })}\n\n`);
-        
-        // 添加小延迟模拟流式效果
-        await new Promise(resolve => setTimeout(resolve, 100)); // 增加延迟到100ms
+      if (hasError) {
+        return;
       }
-
+      
       // 发送生成完成状态
       res.write(`data: ${JSON.stringify({
         type: 'status',
@@ -228,92 +219,14 @@ module.exports = (databaseService, llmService, reportExportService) => {
     try {
       const { id } = req.params;
       
-      // 获取报告信息，用于后续更新统计
-      const report = await databaseService.getReviewReportById(id);
-      if (!report) {
-        return res.status(404).json({
-          success: false,
-          error: '报告不存在'
-        });
-      }
+      Logger.apiRequest('DELETE', `/api/reports/${id}`, {});
       
-      // 删除数据库记录
       await databaseService.deleteReviewReport(id);
-      
-      // 更新周数统计
-      if (report.week_id) {
-        await databaseService.updateWeekStatistics(report.week_id);
-      }
-      
-      // 删除文件
-      try {
-        const reportPath = path.join(__dirname, '..', '..', 'reports', `${id}.txt`);
-        await fs.unlink(reportPath);
-        Logger.info(`报告文件已删除: ${reportPath}`);
-      } catch (fileError) {
-        Logger.warning('删除报告文件失败:', fileError);
-      }
       
       res.json({ success: true });
     } catch (error) {
       Logger.error('删除报告失败:', error);
       res.status(500).json({ error: '删除报告失败' });
-    }
-  });
-
-  // 锁定报告
-  router.put('/:id/lock', async (req, res) => {
-    try {
-      const { id } = req.params;
-      
-      // 获取报告信息，用于后续更新统计
-      const report = await databaseService.getReviewReportById(id);
-      if (!report) {
-        return res.status(404).json({
-          success: false,
-          error: '报告不存在'
-        });
-      }
-      
-      await databaseService.lockReviewReport(id);
-      
-      // 更新周数统计
-      if (report.week_id) {
-        await databaseService.updateWeekStatistics(report.week_id);
-      }
-      
-      res.json({ success: true });
-    } catch (error) {
-      Logger.error('锁定报告失败:', error);
-      res.status(500).json({ error: '锁定报告失败' });
-    }
-  });
-
-  // 解锁报告
-  router.put('/:id/unlock', async (req, res) => {
-    try {
-      const { id } = req.params;
-      
-      // 获取报告信息，用于后续更新统计
-      const report = await databaseService.getReviewReportById(id);
-      if (!report) {
-        return res.status(404).json({
-          success: false,
-          error: '报告不存在'
-        });
-      }
-      
-      await databaseService.unlockReviewReport(id);
-      
-      // 更新周数统计
-      if (report.week_id) {
-        await databaseService.updateWeekStatistics(report.week_id);
-      }
-      
-      res.json({ success: true });
-    } catch (error) {
-      Logger.error('解锁报告失败:', error);
-      res.status(500).json({ error: '解锁报告失败' });
     }
   });
 
@@ -572,8 +485,30 @@ module.exports = (databaseService, llmService, reportExportService) => {
 
         res.write(`data: ${JSON.stringify({ type: 'status', message: `已收集 ${reports.length} 份报告，开始生成整合内容...` })}\n\n`);
 
-        // 生成AI整合报告内容
-        const aiReportContent = await reportExportService.buildAIReportContent(reports, week_number, date_range);
+        // 生成AI整合报告内容（流式）
+        let aiReportContent = '';
+        let hasError = false;
+        
+        try {
+          // 使用流式生成
+          aiReportContent = await reportExportService.buildAIReportContentStream(reports, week_number, date_range, (chunk) => {
+            // 发送内容块
+            res.write(`data: ${JSON.stringify({
+              type: 'content',
+              content: chunk,
+              timestamp: new Date().toISOString()
+            })}\n\n`);
+          });
+          
+        } catch (error) {
+          Logger.error('AI整合报告流式生成失败:', error);
+          hasError = true;
+          throw new Error(error.message || 'AI整合报告生成失败');
+        }
+        
+        if (hasError) {
+          return;
+        }
         
         if (!aiReportContent || aiReportContent.trim() === '') {
           res.write(`data: ${JSON.stringify({ 
@@ -585,25 +520,6 @@ module.exports = (databaseService, llmService, reportExportService) => {
         }
 
         res.write(`data: ${JSON.stringify({ type: 'status', message: 'AI整合报告内容生成完成，正在保存...' })}\n\n`);
-
-        // 分段发送内容以实现流式效果
-        const contentChunks = splitReportIntoChunks(aiReportContent, 200);
-        let fullContent = '';
-        
-        for (let i = 0; i < contentChunks.length; i++) {
-          const chunk = contentChunks[i];
-          fullContent += chunk;
-          
-          // 发送内容块
-          res.write(`data: ${JSON.stringify({ 
-            type: 'content', 
-            content: fullContent,
-            progress: Math.floor((i + 1) / contentChunks.length * 80) // 0-80%进度
-          })}\n\n`);
-          
-          // 添加小延迟模拟流式效果
-          await new Promise(resolve => setTimeout(resolve, 50));
-        }
 
         res.write(`data: ${JSON.stringify({ type: 'status', message: '正在生成文件...' })}\n\n`);
 
@@ -675,63 +591,27 @@ module.exports = (databaseService, llmService, reportExportService) => {
   });
 
   // 保存整合报告
-  router.post('/integration-report/save', async (req, res) => {
+  router.post('/integration-report', async (req, res) => {
     try {
       const { weekId, weekNumber, dateRange, userNames, reportContent, filePath } = req.body;
       
-      Logger.apiRequest('POST', '/api/reports/integration-report/save', req.body);
+      Logger.apiRequest('POST', '/api/reports/integration-report', req.body);
       
-      const reportId = await databaseService.saveIntegrationReport(
-        weekId, weekNumber, dateRange, userNames, reportContent, filePath
-      );
-      
-      res.json({
-        success: true,
-        data: { id: reportId }
+      const result = await databaseService.saveIntegrationReport({
+        weekId,
+        weekNumber,
+        dateRange,
+        userNames,
+        reportContent,
+        filePath
       });
+      
+      res.json({ success: true, data: result });
     } catch (error) {
       Logger.error('保存整合报告失败:', error);
       res.status(500).json({
         success: false,
         error: '保存整合报告失败'
-      });
-    }
-  });
-
-  // 锁定整合报告
-  router.put('/integration-report/:id/lock', async (req, res) => {
-    try {
-      const { id } = req.params;
-      
-      Logger.apiRequest('PUT', `/api/reports/integration-report/${id}/lock`, {});
-      
-      await databaseService.lockIntegrationReport(id);
-      
-      res.json({ success: true });
-    } catch (error) {
-      Logger.error('锁定整合报告失败:', error);
-      res.status(500).json({
-        success: false,
-        error: '锁定整合报告失败'
-      });
-    }
-  });
-
-  // 解锁整合报告
-  router.put('/integration-report/:id/unlock', async (req, res) => {
-    try {
-      const { id } = req.params;
-      
-      Logger.apiRequest('PUT', `/api/reports/integration-report/${id}/unlock`, {});
-      
-      await databaseService.unlockIntegrationReport(id);
-      
-      res.json({ success: true });
-    } catch (error) {
-      Logger.error('解锁整合报告失败:', error);
-      res.status(500).json({
-        success: false,
-        error: '解锁整合报告失败'
       });
     }
   });
@@ -762,22 +642,30 @@ module.exports = (databaseService, llmService, reportExportService) => {
       
       Logger.apiRequest('GET', `/api/reports/integration-report/${id}/download/${format}`, {});
       
+      console.log(`🔍 开始下载整合报告，ID: ${id}, 格式: ${format}`);
+      
       const integrationReport = await databaseService.getIntegrationReportById(id);
       
       if (!integrationReport) {
+        console.log(`❌ 未找到整合报告，ID: ${id}`);
         return res.status(404).json({
           success: false,
           error: '未找到整合报告'
         });
       }
       
+      console.log(`✅ 找到整合报告，ID: ${id}, 周数: ${integrationReport.week_number}, 内容长度: ${integrationReport.report_content ? integrationReport.report_content.length : 0}`);
+      
       // 生成文件名
       const fileName = `第${integrationReport.week_number}周-${integrationReport.date_range}AI整合复盘报告.${format === 'pdf' ? 'pdf' : 'docx'}`;
+      console.log(`📄 生成文件名: ${fileName}`);
       
       // 生成文件
+      console.log(`🔄 开始生成文件...`);
       const fileNameWithPath = await reportExportService.generateIntegrationReportFile(
         integrationReport, format, fileName
       );
+      console.log(`✅ 文件生成完成: ${fileNameWithPath}`);
       
       // 设置响应头
       const contentType = format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -786,8 +674,11 @@ module.exports = (databaseService, llmService, reportExportService) => {
       
       // 发送文件
       const filePath = path.join(__dirname, '..', '..', 'reports', fileNameWithPath);
+      console.log(`📤 发送文件: ${filePath}`);
+      
       res.sendFile(filePath, (err) => {
         if (err) {
+          console.error('❌ 整合报告文件发送失败:', err);
           Logger.error('整合报告文件发送失败:', err);
           if (!res.headersSent) {
             res.status(500).json({
@@ -796,10 +687,13 @@ module.exports = (databaseService, llmService, reportExportService) => {
             });
           }
         } else {
+          console.log('✅ 整合报告文件发送成功');
           Logger.info('整合报告文件发送成功');
         }
       });
     } catch (error) {
+      console.error('❌ 下载整合报告失败:', error);
+      console.error('错误堆栈:', error.stack);
       Logger.error('下载整合报告失败:', error);
       res.status(500).json({
         success: false,

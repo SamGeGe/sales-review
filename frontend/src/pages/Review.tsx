@@ -60,6 +60,7 @@ const Review: React.FC = () => {
   // 后端连接状态
   const [backendConnected, setBackendConnected] = useState<boolean>(false);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isLocked, setIsLocked] = useState<boolean>(false);
 
   // 报告生成状态
@@ -103,7 +104,6 @@ const Review: React.FC = () => {
             user: review.user_id,
             user_name: review.user_name,
             review_method: review.review_method,
-            is_locked: review.is_locked,
             created_at: review.created_at
           };
         });
@@ -957,9 +957,11 @@ ${weekPlanRows.filter(row => row.task.trim() || row.expectedResult.trim()).map((
     }
   };
 
-  // 锁定并保存
+  // 保存报告
   const handleLockAndSave = async () => {
     try {
+      setIsSaving(true);
+      
       // 获取选中的用户名
       const selectedUserOption = userOptions.find(user => user.value === selectedUser);
       const selectedUserName = selectedUserOption ? selectedUserOption.label : '未知用户';
@@ -984,7 +986,7 @@ ${weekPlanRows.filter(row => row.task.trim() || row.expectedResult.trim()).map((
       
       if (response.success) {
         setIsLocked(true);
-        message.success('报告已锁定并保存到数据库');
+        message.success('报告已保存到数据库');
         console.log('✅ 报告保存成功:', response.data);
         
         // 保存成功后立即刷新历史数据，更新日历显示
@@ -996,6 +998,8 @@ ${weekPlanRows.filter(row => row.task.trim() || row.expectedResult.trim()).map((
     } catch (error: any) {
       console.error('保存报告失败:', error);
       message.error(`保存失败: ${error.message}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -1796,15 +1800,15 @@ ${weekPlanRows.filter(row => row.task.trim() || row.expectedResult.trim()).map((
                 <Button
                   type="primary"
                   onClick={handleLockAndSave}
-                  disabled={isLocked || isGenerating}
+                  disabled={isLocked || isGenerating || isSaving}
                   style={{ marginRight: 8 }}
-                  loading={isGenerating}
+                  loading={isSaving}
                 >
-                  {isGenerating ? '生成中...' : '锁定并保存'}
+                  {isSaving ? '保存中...' : '保存报告'}
                 </Button>
                 <Button
                   onClick={handleRegenerate}
-                  disabled={isLocked || isGenerating}
+                  disabled={isLocked || isGenerating || isSaving}
                   style={{ marginRight: 8 }}
                   loading={isGenerating}
                 >

@@ -221,7 +221,7 @@ async function generateIntegrationReportFile(integrationReport, format, fileName
     
     if (format === 'pdf') {
       // 生成PDF
-      const pdfBuffer = await DocumentGenerator.generatePdf(integrationReport.report_content);
+      const pdfBuffer = await DocumentGenerator.generatePDF(integrationReport.report_content);
       await fs.writeFile(filePath, pdfBuffer);
     } else {
       // 生成Word
@@ -237,7 +237,116 @@ async function generateIntegrationReportFile(integrationReport, format, fileName
   }
 }
 
-// 构建AI整合报告内容
+// 构建AI整合报告内容（流式版本）
+async function buildAIReportContentStream(reports, weekNumber, dateRange, onChunk) {
+  try {
+    // 收集所有报告数据，包括原始数据和AI报告
+    const allReports = [];
+    const users = new Set();
+    let earliestDate = null;
+    let latestDate = null;
+    
+    for (const report of reports) {
+      // 收集用户信息
+      users.add(report.user_name);
+      
+      // 计算日期范围
+      const startDate = dayjs(report.date_range_start);
+      const endDate = dayjs(report.date_range_end);
+      
+      if (!earliestDate || startDate.isBefore(earliestDate)) {
+        earliestDate = startDate;
+      }
+      if (!latestDate || endDate.isAfter(latestDate)) {
+        latestDate = endDate;
+      }
+      
+      // 构建完整的报告数据结构
+      const reportData = {
+        userName: report.user_name,
+        dateRange: `${dayjs(report.date_range_start).format('YYYY-MM-DD')} 至 ${dayjs(report.date_range_end).format('YYYY-MM-DD')}`,
+        reviewMethod: report.review_method,
+        // 原始复盘数据
+        lastWeekPlan: report.last_week_plan || [],
+        lastWeekActions: report.last_week_actions || [],
+        weekPlan: report.week_plan || [],
+        coordinationItems: report.coordination_items || '',
+        otherItems: report.other_items || '',
+        // AI生成的报告内容
+        aiReport: report.ai_report || '',
+        // 报告元数据
+        createdAt: report.created_at
+      };
+      
+      allReports.push(reportData);
+    }
+    
+    // 确定最终日期范围
+    const finalDateRange = earliestDate && latestDate 
+      ? `${earliestDate.format('YYYY年M月D日')}-${latestDate.format('YYYY年M月D日')}`
+      : dateRange;
+    
+    // 解析日期范围用于模板变量
+    const dateParts = finalDateRange.split('-');
+    const startDateParts = dateParts[0].match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+    const endDateParts = dateParts[1].match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+    
+    // 构建模板数据
+    const templateData = {
+      dateRange: finalDateRange,
+      weekNumber: weekNumber,
+      userList: Array.from(users).join('、'),
+      reportCount: allReports.length,
+      reports: allReports,
+      startYear: startDateParts ? startDateParts[1] : '2025',
+      startMonth: startDateParts ? startDateParts[2] : '1',
+      startDay: startDateParts ? startDateParts[3] : '1',
+      endYear: endDateParts ? endDateParts[1] : '2025',
+      endMonth: endDateParts ? endDateParts[2] : '1',
+      endDay: endDateParts ? endDateParts[3] : '1',
+      currentTime: new Date().toISOString()
+    };
+    
+    // 读取模板并编译
+    const llmService = require('./llmService');
+    const llmInstance = new llmService();
+    const template = await llmInstance.readAIIntegrationPromptTemplate();
+    
+    // 使用Handlebars编译模板
+    const Handlebars = require('handlebars');
+    const compiledTemplate = Handlebars.compile(template);
+    const prompt = compiledTemplate(templateData);
+    
+    console.log('🔍 LLM实例创建成功');
+    console.log('🔍 提示词长度:', prompt.length);
+    console.log('🔍 传递给LLM的报告数量:', allReports.length);
+    console.log('🔍 报告数据结构:', JSON.stringify(allReports.map(r => ({
+      userName: r.userName,
+      hasLastWeekPlan: r.lastWeekPlan.length > 0,
+      hasLastWeekActions: r.lastWeekActions.length > 0,
+      hasWeekPlan: r.weekPlan.length > 0,
+      hasCoordinationItems: !!r.coordinationItems,
+      hasOtherItems: !!r.otherItems,
+      hasAiReport: !!r.aiReport
+    })), null, 2));
+    
+    try {
+      // 使用流式生成
+      const result = await llmInstance.generateAIReportStream(prompt, onChunk);
+      console.log('🔍 LLM流式调用完成，总长度:', result.length);
+      
+      return result;
+    } catch (error) {
+      console.error('❌ LLM流式调用失败:', error);
+      throw new Error(`LLM流式调用失败: ${error.message}`);
+    }
+  } catch (error) {
+    console.error('❌ 构建AI整合报告内容失败:', error);
+    throw new Error(`构建AI整合报告内容失败: ${error.message}`);
+  }
+}
+
+// 构建AI整合报告内容（非流式版本，保留兼容性）
 async function buildAIReportContent(reports, weekNumber, dateRange) {
   try {
     // 收集所有报告数据，包括原始数据和AI报告
@@ -275,7 +384,6 @@ async function buildAIReportContent(reports, weekNumber, dateRange) {
         // AI生成的报告内容
         aiReport: report.ai_report || '',
         // 报告元数据
-        isLocked: report.is_locked,
         createdAt: report.created_at
       };
       
@@ -395,5 +503,6 @@ module.exports = {
   generateBatchReport, 
   generateAIReport,
   generateIntegrationReportFile,
-  buildAIReportContent
+  buildAIReportContent,
+  buildAIReportContentStream
 }; 

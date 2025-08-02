@@ -337,31 +337,17 @@ class ApiService {
   }
 
   async deleteReviewReport(id: number): Promise<ApiResponse<any>> {
-    return this.request(`/api/reports/${id}`, {
-      method: 'DELETE'
-    });
-  }
-
-  async lockReviewReport(id: number): Promise<ApiResponse<any>> {
-    return this.request(`/api/reports/${id}/lock`, {
-      method: 'PUT'
-    });
-  }
-
-  async unlockReviewReport(id: number): Promise<ApiResponse<any>> {
-    return this.request(`/api/reports/${id}/unlock`, {
-      method: 'PUT'
-    });
+    return this.delete(`/api/reports/${id}`);
   }
 
   // 获取周详情
   async getWeekDetail(weekId: number): Promise<ApiResponse<any>> {
-    return this.request(`/api/weeks/${weekId}`);
+    return this.get(`/api/weeks/${weekId}`);
   }
 
   // 获取整合报告
   async getIntegrationReport(weekId: number): Promise<ApiResponse<any>> {
-    return this.request(`/api/reports/integration-report/${weekId}`);
+    return this.get(`/api/reports/integration-report/${weekId}`);
   }
 
   // 保存整合报告
@@ -373,31 +359,14 @@ class ApiService {
     reportContent: string;
     filePath?: string;
   }): Promise<ApiResponse<any>> {
-    return this.request('/api/reports/integration-report/save', {
+    return this.request('/api/reports/integration-report', {
       method: 'POST',
       body: JSON.stringify(data)
     });
   }
 
-  // 锁定整合报告
-  async lockIntegrationReport(id: number): Promise<ApiResponse<any>> {
-    return this.request(`/api/reports/integration-report/${id}/lock`, {
-      method: 'PUT'
-    });
-  }
-
-  // 解锁整合报告
-  async unlockIntegrationReport(id: number): Promise<ApiResponse<any>> {
-    return this.request(`/api/reports/integration-report/${id}/unlock`, {
-      method: 'PUT'
-    });
-  }
-
-  // 删除整合报告
   async deleteIntegrationReport(id: number): Promise<ApiResponse<any>> {
-    return this.request(`/api/reports/integration-report/${id}`, {
-      method: 'DELETE'
-    });
+    return this.delete(`/api/reports/integration-report/${id}`);
   }
 
   // 下载整合报告

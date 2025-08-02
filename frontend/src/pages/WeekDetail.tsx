@@ -39,7 +39,6 @@ interface Report {
   id: number;
   user_name: string;
   review_method: string;
-  is_locked: number;
   created_at: string;
   date_range_start: string;
   date_range_end: string;
@@ -52,8 +51,6 @@ interface WeekData {
   date_range_start: string;
   date_range_end: string;
   report_count: number;
-  locked_count: number;
-  unlocked_count: number;
 }
 
 interface IntegrationReport {
@@ -64,7 +61,6 @@ interface IntegrationReport {
   user_names: string;
   report_content: string;
   file_path: string;
-  is_locked: number;
   created_at: string;
   updated_at: string;
 }
@@ -78,6 +74,7 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
   const [loading, setLoading] = useState(true);
   const [integrationReport, setIntegrationReport] = useState<IntegrationReport | null>(null);
   const [integrationLoading, setIntegrationLoading] = useState(false);
+  const [isGeneratingAIReport, setIsGeneratingAIReport] = useState(false);
 
   const fetchWeekData = async () => {
     try {
@@ -289,6 +286,8 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
     }
     
     try {
+      setIsGeneratingAIReport(true);
+      
       // 显示加载状态
       const loadingKey = 'ai-report-loading';
       message.loading({
@@ -338,7 +337,6 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
         user_names: '',
         report_content: '',
         file_path: '',
-        is_locked: 0,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -434,26 +432,28 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
     } catch (error: any) {
       console.error('AI整合报告生成失败:', error);
       message.error(`AI整合报告生成失败: ${error.message}`);
+    } finally {
+      setIsGeneratingAIReport(false);
     }
   };
 
   const handleDeleteReport = async (reportId: number) => {
     Modal.confirm({
       title: '确认删除',
-      content: '确定要删除这份报告吗？此操作不可恢复。',
+      content: '确定要删除这份复盘报告吗？此操作不可恢复。',
       okText: '确认',
       cancelText: '取消',
       onOk: async () => {
         try {
           const response = await apiService.deleteReviewReport(reportId);
           if (response.success) {
-            message.success('报告删除成功');
+            message.success('复盘报告删除成功');
             fetchWeekData(); // 刷新数据
           } else {
             message.error('删除失败');
           }
         } catch (error) {
-          console.error('删除报告失败:', error);
+          console.error('删除复盘报告失败:', error);
           message.error('删除失败');
         }
       }
@@ -461,101 +461,26 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
   };
 
   const handleBatchDelete = async () => {
-    if (selectedReports.length === 0) { message.warning('请先选择要删除的报告'); return; }
+    if (selectedReports.length === 0) {
+      message.warning('请先选择要删除的复盘报告');
+      return;
+    }
+
     Modal.confirm({
       title: '确认批量删除',
-      content: `确定要删除选中的 ${selectedReports.length} 份报告吗？此操作不可恢复。`,
+      content: `确定要删除选中的 ${selectedReports.length} 份复盘报告吗？此操作不可恢复。`,
       okText: '确认',
       cancelText: '取消',
       onOk: async () => {
         try {
-          message.loading('正在删除...', 0);
-          for (const reportId of selectedReports) {
-            await apiService.deleteReviewReport(reportId);
-          }
-          message.destroy();
-          message.success(`批量删除完成，共删除 ${selectedReports.length} 份报告`);
+          const deletePromises = selectedReports.map(id => apiService.deleteReviewReport(id));
+          await Promise.all(deletePromises);
+          message.success('批量删除成功');
           setSelectedReports([]);
           fetchWeekData(); // 刷新数据
         } catch (error) {
-          message.destroy();
+          console.error('批量删除失败:', error);
           message.error('批量删除失败');
-        }
-      }
-    });
-  };
-
-  const handleToggleLock = async (reportId: number, currentLocked: number) => {
-    try {
-      const endpoint = currentLocked ? `/api/reports/${reportId}/unlock` : `/api/reports/${reportId}/lock`;
-      const response = await apiService.put(endpoint);
-      if (response.success) {
-        message.success(currentLocked ? '报告已解锁' : '报告已锁定');
-        fetchWeekData(); // 刷新数据
-      } else {
-        message.error('操作失败');
-      }
-    } catch (error) {
-      console.error('切换锁定状态失败:', error);
-      message.error('操作失败');
-    }
-  };
-
-  // 整合报告相关操作
-  const handleLockIntegrationReport = async () => {
-    if (!integrationReport) return;
-    
-    try {
-      const response = await apiService.lockIntegrationReport(integrationReport.id);
-      if (response.success) {
-        message.success('整合报告已锁定');
-        fetchIntegrationReport(); // 刷新数据
-      } else {
-        message.error('锁定失败');
-      }
-    } catch (error) {
-      console.error('锁定整合报告失败:', error);
-      message.error('锁定失败');
-    }
-  };
-
-  const handleUnlockIntegrationReport = async () => {
-    if (!integrationReport) return;
-    
-    try {
-      const response = await apiService.unlockIntegrationReport(integrationReport.id);
-      if (response.success) {
-        message.success('整合报告已解锁');
-        fetchIntegrationReport(); // 刷新数据
-      } else {
-        message.error('解锁失败');
-      }
-    } catch (error) {
-      console.error('解锁整合报告失败:', error);
-      message.error('解锁失败');
-    }
-  };
-
-  const handleDeleteIntegrationReport = async () => {
-    if (!integrationReport) return;
-    
-    Modal.confirm({
-      title: '确认删除',
-      content: '确定要删除这份整合报告吗？此操作不可恢复。',
-      okText: '确认',
-      cancelText: '取消',
-      onOk: async () => {
-        try {
-          const response = await apiService.deleteIntegrationReport(integrationReport.id);
-          if (response.success) {
-            message.success('整合报告删除成功');
-            fetchIntegrationReport(); // 刷新数据
-          } else {
-            message.error('删除失败');
-          }
-        } catch (error) {
-          console.error('删除整合报告失败:', error);
-          message.error('删除失败');
         }
       }
     });
@@ -635,16 +560,6 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
       }
     },
     {
-      title: '状态',
-      dataIndex: 'is_locked',
-      key: 'is_locked',
-      render: (locked: number) => (
-        <Tag color={locked ? 'red' : 'green'}>
-          {locked ? '已锁定' : '未锁定'}
-        </Tag>
-      )
-    },
-    {
       title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
@@ -660,7 +575,7 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
               type="primary"
               icon={<EyeOutlined />}
               size="small"
-              onClick={() => navigate(`/report-detail/${record.id}`)}
+              onClick={() => navigate(`/history/week/${weekId}/report/${record.id}`)}
             >
               查看
             </Button>
@@ -681,16 +596,6 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
               onClick={() => handleDownloadPdf(record)}
             >
               PDF
-            </Button>
-          </Tooltip>
-          <Tooltip title={record.is_locked ? '解锁' : '锁定'}>
-            <Button
-              type="primary"
-              icon={record.is_locked ? <UnlockOutlined /> : <LockOutlined />}
-              size="small"
-              onClick={() => handleToggleLock(record.id, record.is_locked)}
-            >
-              {record.is_locked ? '解锁' : '锁定'}
             </Button>
           </Tooltip>
           <Tooltip title="删除">
@@ -728,36 +633,28 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
           </div>
         </div>
         
-        <Row gutter={16} style={{ marginBottom: '24px' }}>
-          <Col span={6}>
+        <Row gutter={16} style={{ marginBottom: 16 }}>
+          <Col span={8}>
             <Card size="small">
-              <div>总报告数</div>
+              <div>报告总数</div>
               <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#1890ff' }}>
                 {weekData.report_count}
               </div>
             </Card>
           </Col>
-          <Col span={6}>
-            <Card size="small">
-              <div>已锁定</div>
-              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ff4d4f' }}>
-                {weekData.locked_count}
-              </div>
-            </Card>
-          </Col>
-          <Col span={6}>
-            <Card size="small">
-              <div>未锁定</div>
-              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#52c41a' }}>
-                {weekData.unlocked_count}
-              </div>
-            </Card>
-          </Col>
-          <Col span={6}>
+          <Col span={8}>
             <Card size="small">
               <div>年份</div>
               <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#722ed1' }}>
                 {weekData.year}
+              </div>
+            </Card>
+          </Col>
+          <Col span={8}>
+            <Card size="small">
+              <div>周数</div>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#52c41a' }}>
+                第{weekData.week_number}周
               </div>
             </Card>
           </Col>
@@ -772,8 +669,10 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
                 type="primary"
                 icon={<RobotOutlined />}
                 onClick={handleGenerateAIReport}
+                disabled={isGeneratingAIReport}
+                loading={isGeneratingAIReport}
               >
-                批量生成AI整合报告
+                {isGeneratingAIReport ? '生成中...' : '生成 AI 整合报告'}
               </Button>
               <Button
                 type="primary"
@@ -847,51 +746,14 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
             <div>
               <div style={{ marginBottom: 16 }}>
                 <Row gutter={16} align="middle">
-                  <Col span={12}>
+                  <Col span={24}>
                     <Text strong>生成时间：</Text>
                     {dayjs(integrationReport.created_at).format('YYYY-MM-DD HH:mm')}
-                  </Col>
-                  <Col span={12}>
-                    <Text strong>状态：</Text>
-                    <Tag color={integrationReport.is_locked ? 'red' : 'green'}>
-                      {integrationReport.is_locked ? '已锁定' : '未锁定'}
-                    </Tag>
                   </Col>
                 </Row>
               </div>
 
-              <div style={{ marginBottom: 16 }}>
-                <Space>
-                  <Button
-                    type="primary"
-                    icon={<SaveOutlined />}
-                    onClick={integrationReport.is_locked ? handleUnlockIntegrationReport : handleLockIntegrationReport}
-                  >
-                    {integrationReport.is_locked ? '解锁' : '锁定并保存'}
-                  </Button>
-                  <Button
-                    icon={<FileWordOutlined />}
-                    onClick={() => handleDownloadIntegrationReport('word')}
-                  >
-                    下载Word
-                  </Button>
-                  <Button
-                    icon={<FilePdfOutlined />}
-                    onClick={() => handleDownloadIntegrationReport('pdf')}
-                  >
-                    下载PDF
-                  </Button>
-                  <Button
-                    danger
-                    icon={<DeleteOutlined />}
-                    onClick={handleDeleteIntegrationReport}
-                  >
-                    删除
-                  </Button>
-                </Space>
-              </div>
 
-              <Divider />
 
               <div style={{
                 border: '1px solid #d9d9d9',
@@ -902,21 +764,45 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
                 overflow: 'auto'
               }}>
                 {integrationReport.report_content ? (
-                  <div 
-                    style={{ 
-                      backgroundColor: '#f5f5f5', 
-                      padding: 16, 
-                      borderRadius: 4,
-                      lineHeight: 1.6
-                    }}
-                  >
-                    <div style={{
-                      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-                      color: '#2c3e50'
-                    }}>
-                      <ReactMarkdown 
-                        remarkPlugins={[remarkGfm]}
-                        components={{
+                  <div style={{
+                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                    color: '#2c3e50'
+                  }}>
+                    {isGeneratingAIReport && (
+                      <div style={{
+                        padding: '12px',
+                        marginBottom: '16px',
+                        backgroundColor: '#e6f7ff',
+                        border: '1px solid #91d5ff',
+                        borderRadius: '6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        <div style={{
+                          width: '12px',
+                          height: '12px',
+                          borderRadius: '50%',
+                          backgroundColor: '#1890ff',
+                          animation: 'pulse 1.5s infinite'
+                        }} />
+                        <span style={{ color: '#1890ff', fontWeight: '500' }}>
+                          正在流式生成报告内容...
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* 调试信息 */}
+                    <details style={{ marginBottom: '16px', padding: '8px', backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
+                      <summary style={{ cursor: 'pointer', fontWeight: 'bold' }}>调试信息 - 原始Markdown内容</summary>
+                      <pre style={{ fontSize: '12px', overflow: 'auto', maxHeight: '200px', backgroundColor: '#fff', padding: '8px', border: '1px solid #ddd' }}>
+                        {integrationReport.report_content}
+                      </pre>
+                    </details>
+                    
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
                           // 表格样式优化
                           table: ({node, ...props}) => (
                             <table 
@@ -1110,8 +996,30 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
                       >
                         {integrationReport.report_content}
                       </ReactMarkdown>
+                      
+                      {/* 操作按钮 - 移到报告内容下方 */}
+                      <div style={{ marginTop: 24, padding: 16, backgroundColor: '#f8f9fa', borderRadius: 8, border: '1px solid #e9ecef' }}>
+                        <Text strong style={{ display: 'block', marginBottom: '12px', color: '#495057' }}>
+                          报告操作
+                        </Text>
+                        <Space wrap>
+                          <Button
+                            icon={<FileWordOutlined />}
+                            onClick={() => handleDownloadIntegrationReport('word')}
+                            disabled={isGeneratingAIReport || !integrationReport}
+                          >
+                            下载Word
+                          </Button>
+                          <Button
+                            icon={<FilePdfOutlined />}
+                            onClick={() => handleDownloadIntegrationReport('pdf')}
+                            disabled={isGeneratingAIReport || !integrationReport}
+                          >
+                            下载PDF
+                          </Button>
+                        </Space>
+                      </div>
                     </div>
-                  </div>
                 ) : (
                   <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
                     <RobotOutlined style={{ fontSize: '48px', marginBottom: '16px' }} />
@@ -1128,7 +1036,7 @@ const WeekDetail: React.FC<WeekDetailProps> = () => {
               <RobotOutlined style={{ fontSize: '48px', marginBottom: '16px' }} />
               <div>暂无AI整合报告</div>
               <div style={{ marginTop: '8px', fontSize: '12px' }}>
-                选择上方的报告，点击"批量生成AI整合报告"来创建
+                选择上方的报告，点击"生成 AI 整合报告"来创建
               </div>
             </div>
           )}

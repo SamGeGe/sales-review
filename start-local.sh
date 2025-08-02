@@ -13,6 +13,22 @@ if [ ! -d "backend/node_modules" ]; then
     cd backend && npm install && cd ..
 fi
 
+# 测试 dayjs 修复
+echo "🔧 测试 dayjs 修复..."
+cd backend && npm run test-dayjs
+if [ $? -ne 0 ]; then
+    echo "❌ dayjs 测试失败，请检查依赖安装"
+    exit 1
+fi
+
+# 初始化数据库
+echo "🗄️ 初始化数据库..."
+cd backend && npm run init-db
+if [ $? -ne 0 ]; then
+    echo "❌ 数据库初始化失败，请检查数据库连接"
+    exit 1
+fi
+
 # 启动后端服务
 echo "🔧 启动后端服务 (端口: 6091)..."
 cd backend && npm start &

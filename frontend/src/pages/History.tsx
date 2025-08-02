@@ -33,8 +33,6 @@ interface WeekData {
   date_range_start: string;
   date_range_end: string;
   report_count: number;
-  locked_count: number;
-  unlocked_count: number;
   created_at: string;
   updated_at: string;
 }
@@ -133,12 +131,6 @@ const History: React.FC = () => {
           <Text style={{ fontSize: isMobile ? '11px' : '12px' }}>
             总报告：{record.report_count} 份
           </Text>
-          <Text type="success" style={{ fontSize: isMobile ? '11px' : '12px' }}>
-            <LockOutlined /> 已锁定：{record.locked_count} 份
-          </Text>
-          <Text type="warning" style={{ fontSize: isMobile ? '11px' : '12px' }}>
-            <UnlockOutlined /> 未锁定：{record.unlocked_count} 份
-          </Text>
         </Space>
       ),
     },
@@ -190,9 +182,7 @@ const History: React.FC = () => {
   // 计算总统计
   const totalStats = weeks.reduce((acc, week) => ({
     totalReports: acc.totalReports + week.report_count,
-    totalLocked: acc.totalLocked + week.locked_count,
-    totalUnlocked: acc.totalUnlocked + week.unlocked_count,
-  }), { totalReports: 0, totalLocked: 0, totalUnlocked: 0 });
+  }), { totalReports: 0 });
 
   return (
     <div style={{ padding: isMobile ? 12 : 24 }}>
@@ -216,15 +206,16 @@ const History: React.FC = () => {
           </Col>
           <Col xs={12} sm={6}>
             <Statistic 
-              title="已锁定报告" 
-              value={totalStats.totalLocked} 
-              valueStyle={{ color: '#cf1322', fontSize: isMobile ? '16px' : '20px' }}
+              title="年份" 
+              value={new Date().getFullYear()} 
+              prefix={<CalendarOutlined />}
+              valueStyle={{ fontSize: isMobile ? '16px' : '20px' }}
             />
           </Col>
           <Col xs={12} sm={6}>
             <Statistic 
-              title="未锁定报告" 
-              value={totalStats.totalUnlocked} 
+              title="系统状态" 
+              value="正常" 
               valueStyle={{ color: '#3f8600', fontSize: isMobile ? '16px' : '20px' }}
             />
           </Col>

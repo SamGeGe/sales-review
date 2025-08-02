@@ -70,10 +70,15 @@ app.use('/api/users', usersRouter(databaseService));
 app.use('/api/reports', reportsRouter(databaseService, llmService, reportExportService));
 app.use('/api/reviews', reviewsRouter(databaseService));
 
-// 添加 /api/weeks 路由，直接代理到 reviews/weeks
+// 直接定义 /api/weeks 路由
 app.get('/api/weeks', async (req, res) => {
   try {
     Logger.apiRequest('GET', '/api/weeks', req.query);
+    
+    // 确保数据库服务已初始化
+    if (!databaseService.pool) {
+      await databaseService.initDatabase();
+    }
     
     const weeks = await databaseService.getAllWeeks();
     
@@ -85,8 +90,6 @@ app.get('/api/weeks', async (req, res) => {
       date_range_start: week.start_date,
       date_range_end: week.end_date,
       report_count: week.report_count,
-      locked_count: parseInt(week.locked_count) || 0,
-      unlocked_count: parseInt(week.unlocked_count) || 0,
       created_at: week.created_at,
       updated_at: week.updated_at
     }));
@@ -106,7 +109,7 @@ app.get('/api/weeks', async (req, res) => {
   }
 });
 
-// 添加 /api/weeks/:weekId 路由，获取特定周的详情和报告
+// 直接定义 /api/weeks/:weekId 路由
 app.get('/api/weeks/:weekId', async (req, res) => {
   try {
     const { weekId } = req.params;
@@ -132,8 +135,6 @@ app.get('/api/weeks/:weekId', async (req, res) => {
       date_range_start: week.start_date,
       date_range_end: week.end_date,
       report_count: week.report_count,
-      locked_count: parseInt(week.locked_count) || 0,
-      unlocked_count: parseInt(week.unlocked_count) || 0,
       created_at: week.created_at,
       updated_at: week.updated_at
     };
@@ -147,7 +148,6 @@ app.get('/api/weeks/:weekId', async (req, res) => {
       week_plan: report.week_plan || [],
       coordination_items: report.coordination_items || '',
       other_items: report.other_items || '',
-      is_locked: report.is_locked,
       created_at: report.created_at,
       date_range_start: report.date_range_start,
       date_range_end: report.date_range_end,

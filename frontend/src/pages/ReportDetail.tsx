@@ -39,7 +39,6 @@ interface ReportData {
   coordination_items: string;
   other_items: string;
   ai_report: string;
-  is_locked: number;
   week_number: number;
   created_at: string;
 }
@@ -236,11 +235,6 @@ const ReportDetail: React.FC = () => {
           <Descriptions.Item label="复盘方式">
             <Tag color={report.review_method === 'online' ? 'blue' : 'green'}>
               {report.review_method === 'online' ? '线上复盘' : '线下复盘'}
-            </Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="状态">
-            <Tag color={report.is_locked ? 'red' : 'green'}>
-              {report.is_locked ? '已锁定' : '未锁定'}
             </Tag>
           </Descriptions.Item>
           <Descriptions.Item label="创建时间">

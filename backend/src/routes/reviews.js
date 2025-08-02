@@ -9,13 +9,30 @@ module.exports = (databaseService) => {
     try {
       Logger.apiRequest('GET', '/api/reviews/weeks', req.query);
       
+      // 确保数据库服务已初始化
+      if (!databaseService.pool) {
+        await databaseService.initDatabase();
+      }
+      
       const weeks = await databaseService.getAllWeeks();
       
-      Logger.apiResponse(200, { count: weeks.length, data: weeks });
+      // 转换数据格式以匹配前端期望
+      const formattedWeeks = weeks.map(week => ({
+        id: week.id,
+        week_number: week.week_number,
+        year: week.year,
+        date_range_start: week.start_date,
+        date_range_end: week.end_date,
+        report_count: week.report_count,
+        created_at: week.created_at,
+        updated_at: week.updated_at
+      }));
+      
+      Logger.apiResponse(200, { count: formattedWeeks.length, data: formattedWeeks });
       res.json({ 
         success: true,
-        count: weeks.length, 
-        data: weeks 
+        count: formattedWeeks.length, 
+        data: formattedWeeks 
       });
     } catch (error) {
       Logger.error('获取周数失败:', error);
